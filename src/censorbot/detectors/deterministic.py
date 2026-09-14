@@ -1,0 +1,123 @@
+"""Layer A: deterministic pattern detectors.
+
+Fast, dependency-free, and (where a checksum exists) high precision. Each
+detector yields :class:`~censorbot.spans.Span` objects. These run first and
+essentially instantly.
+
+Locale note: dates / phones / national IDs vary by country. We validate what is
+structurally validatable (IBAN, card) at high confidence, and surface the rest as
+lower-confidence high-recall candidates for the review layer rather than dropping
+them.
+"""
+
+from __future__ import annotations
+
+import re
+from collections.abc import Iterator
+
+from ..spans import EntityType, Span
+from .validators import iban_valid, luhn_valid
+
+# --- patterns -------------------------------------------------------------
+
+_EMAIL = re.compile(r"\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b")
+_URL = re.compile(r"\bhttps?://[^\s<>()\[\]{}\"']+", re.IGNORECASE)
+_IPV4 = re.compile(
+    r"\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b"
+)
+_IPV6 = re.compile(r"\b(?:[0-9A-Fa-f]{1,4}:){2,7}[0-9A-Fa-f]{1,4}\b")
+# Loose international phone: optional +, groups of digits with separators.
+_PHONE = re.compile(
+    r"(?<![\w.])(?:\+?\d{1,3}[\s.\-]?)?(?:\(\d{1,4}\)[\s.\-]?)?"
+    r"\d{2,4}(?:[\s.\-]\d{2,4}){1,4}(?![\w])"
+)
+_IBAN = re.compile(r"\b[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]{1,4}){2,8}\b")
+_CARD = re.compile(r"\b(?:\d[ \-]?){13,19}\b")
+_US_SSN = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
+# Explicitly-labelled identifiers: "Patient No: 48392017", "Case AZ 17 C 391/26".
+_LABELLED = re.compile(
+    r"\b(?P<label>patient|case|file|account|acct|reference|ref|invoice|policy|"
+    r"member|customer|tax|vat|nino|nhs)\b"
+    # optional filler words / punctuation between the label and the value
+    r"(?:\s+(?:number|no\.?|id|ref|is|was|of))*\s*[:#\-]?\s*"
+    # value: optional uppercase prefix (kept case-sensitive so lowercase filler
+    # words are never swallowed), then digits.
+    r"(?P<id>(?-i:[A-Z]{0,4})[\s\-]?\d[\d\-/]{2,})",
+    re.IGNORECASE,
+)
+_LABEL_TYPE = {
+    "patient": EntityType.PATIENT_ID,
+    "case": EntityType.CASE_ID,
+    "file": EntityType.CASE_ID,
+    "reference": EntityType.CASE_ID,
+    "ref": EntityType.CASE_ID,
+    "invoice": EntityType.ACCOUNT_ID,
+    "policy": EntityType.ACCOUNT_ID,
+    "account": EntityType.ACCOUNT_ID,
+    "acct": EntityType.ACCOUNT_ID,
+    "member": EntityType.ACCOUNT_ID,
+    "customer": EntityType.ACCOUNT_ID,
+    "tax": EntityType.GOV_ID,
+    "vat": EntityType.GOV_ID,
+    "nino": EntityType.GOV_ID,
+    "nhs": EntityType.GOV_ID,
+}
+# Common date forms: 2026-03-14, 14/03/2026, 14 March 2026, March 14, 2026.
+_MONTHS = (
+    "January February March April May June July August September October "
+    "November December"
+).split()
+_MONTH_RE = "|".join(_MONTHS + [m[:3] for m in _MONTHS])
+_DATE = re.compile(
+    rf"\b(?:"
+    rf"\d{{4}}-\d{{2}}-\d{{2}}"
+    rf"|\d{{1,2}}[./]\d{{1,2}}[./]\d{{2,4}}"
+    rf"|\d{{1,2}}\s+(?:{_MONTH_RE})\.?\s+\d{{2,4}}"
+    rf"|(?:{_MONTH_RE})\.?\s+\d{{1,2}},?\s+\d{{2,4}}"
+    rf")\b",
+    re.IGNORECASE,
+)
+
+
+def _yield(pattern: re.Pattern[str], text: str, etype: EntityType, name: str,
+           conf: float) -> Iterator[Span]:
+    for m in pattern.finditer(text):
+        yield Span(m.start(), m.end(), etype, m.group(0), conf, name)
+
+
+def detect(text: str) -> list[Span]:
+    """Run every deterministic detector over ``text``."""
+
+    spans: list[Span] = []
+    spans += _yield(_EMAIL, text, EntityType.EMAIL, "email", 0.99)
+    spans += _yield(_URL, text, EntityType.URL, "url", 0.98)
+    spans += _yield(_IPV4, text, EntityType.IP, "ipv4", 0.9)
+    spans += _yield(_IPV6, text, EntityType.IP, "ipv6", 0.9)
+    spans += _yield(_US_SSN, text, EntityType.GOV_ID, "us_ssn", 0.9)
+    spans += _yield(_DATE, text, EntityType.DATE, "date", 0.7)
+
+    # Validated detectors: only emit on checksum pass (high precision).
+    for m in _IBAN.finditer(text):
+        if iban_valid(m.group(0)):
+            spans.append(Span(m.start(), m.end(), EntityType.IBAN, m.group(0), 0.99, "iban"))
+    for m in _CARD.finditer(text):
+        if luhn_valid(m.group(0)):
+            spans.append(
+                Span(m.start(), m.end(), EntityType.CREDIT_CARD, m.group(0), 0.97, "card_luhn")
+            )
+
+    # Phones: skip anything already claimed by a validated card/IBAN region later
+    # via overlap resolution; emit as medium confidence.
+    for m in _PHONE.finditer(text):
+        digits = sum(c.isdigit() for c in m.group(0))
+        if 7 <= digits <= 15:
+            spans.append(Span(m.start(), m.end(), EntityType.PHONE, m.group(0), 0.6, "phone"))
+
+    # Labelled identifiers.
+    for m in _LABELLED.finditer(text):
+        etype = _LABEL_TYPE.get(m.group("label").lower(), EntityType.ACCOUNT_ID)
+        spans.append(
+            Span(m.start("id"), m.end("id"), etype, m.group("id").strip(), 0.85, "labelled_id")
+        )
+
+    return spans
