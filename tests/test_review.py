@@ -11,7 +11,7 @@ def test_review_masks_and_carries_metadata():
     assert "█" in out
     # tokens are exposed as data attributes for the tooltip
     assert 'data-token="[[PERSON_001]]"' in out
-    assert "sensitive entities detected" in out
+    assert "detected · policy" in out
 
 
 def test_review_escapes_html():
@@ -45,6 +45,14 @@ def test_review_has_risk_and_leak_banners():
     out = render_review_html("Contact a@b.com in Berlin.", get_policy("personal"),
                              use_spacy=False)
     assert "Leak scan" in out and "Re-ID risk" in out
+
+
+def test_review_is_interactive():
+    # segments drive a client-side rebuild so a reviewer can keep items in the clear
+    out = render_review_html("Contact Maria Gomez at a@b.com.", get_policy("maximum"),
+                             use_spacy=False)
+    assert "const SEGMENTS" in out and "buildOutput" in out
+    assert 'data-idx="0"' in out
 
 
 def test_review_original_present_but_masked_by_default():

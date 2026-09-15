@@ -41,9 +41,13 @@ def render_review_html(text: str, policy: Policy, *, use_spacy: bool = True,
     result = sanitize(text, policy, use_spacy=use_spacy)
     sanitized = result.sanitized_text
 
+    # Build ordered segments (literal text + pii) so the page can rebuild the
+    # outbound text in the browser as the reviewer keeps/masks individual items.
     counts: dict[str, int] = {}
+    segments: list[dict] = []
     parts: list[str] = []
     cursor = 0
+    idx = 0
     for start, end, replacement in result.edit_spans:
         if start < cursor:
             continue  # safety: skip any residual overlap
@@ -55,15 +59,22 @@ def render_review_html(text: str, policy: Policy, *, use_spacy: bool = True,
             color = _COLORS.get(EntityType(etype), _DEFAULT_COLOR)
         except ValueError:
             color = _DEFAULT_COLOR
+        if cursor < start:
+            segments.append({"t": "lit", "v": text[cursor:start]})
+        segments.append({"t": "pii", "tok": replacement, "orig": value})
         parts.append(html.escape(text[cursor:start]))
         parts.append(
-            f'<span class="pii" style="--c:{color}" '
+            f'<span class="pii" data-idx="{idx}" style="--c:{color}" '
             f'data-type="{html.escape(etype)}" data-token="{html.escape(replacement)}" '
-            f'data-orig="{html.escape(value)}" tabindex="0">'
+            f'tabindex="0" role="button" '
+            f'title="click to keep this in the clear">'
             f'<span class="mask">{"█" * min(len(value), 14)}</span>'
             f'<span class="orig">{html.escape(value)}</span></span>'
         )
+        idx += 1
         cursor = end
+    if cursor < len(text):
+        segments.append({"t": "lit", "v": text[cursor:]})
     parts.append(html.escape(text[cursor:]))
     body = "".join(parts)
 
@@ -95,9 +106,9 @@ def render_review_html(text: str, policy: Policy, *, use_spacy: bool = True,
         title=html.escape(title), policy=html.escape(policy.name),
         total=total, legend=legend, body=body,
         risk_banner=risk_banner, leak_banner=leak_banner,
-        # Escape "<" so embedded text can't break out of the <script> block
+        # Escape "<" so embedded data can't break out of the <script> block
         # (a "</script>" in the data) or inject markup.
-        sanitized_json=json.dumps(sanitized).replace("<", "\\u003c"),
+        segments_json=json.dumps(segments).replace("<", "\\u003c"),
     )
 
 
@@ -116,6 +127,7 @@ _TEMPLATE = """<!doctype html>
            flex-wrap: wrap; }}
   h1 {{ font-size: 15px; margin: 0; font-weight: 700; }}
   .count {{ font-weight: 700; color: #9a031e; }}
+  .kept-note {{ font-weight: 700; color: #9a031e; font-size: 13px; }}
   .spacer {{ flex: 1; }}
   button {{ font: inherit; padding: 6px 12px; border-radius: 8px; cursor: pointer;
            border: 1px solid #0003; background: #f0f0f0; }}
@@ -134,6 +146,11 @@ _TEMPLATE = """<!doctype html>
                border-bottom: 2px dashed var(--c); }}
   body.reveal .pii .mask {{ display: none; }}
   body.reveal .pii .orig {{ display: inline; }}
+  /* a "kept" entity will be sent in the clear: show the original, struck-through
+     styling to warn, regardless of the global reveal toggle. */
+  .pii.kept .mask {{ display: none; }}
+  .pii.kept .orig {{ display: inline; background: #9a031e22;
+                    border-bottom: 2px solid #9a031e; }}
   .pii:hover::after, .pii:focus::after {{
      content: attr(data-type) " → " attr(data-token);
      position: absolute; left: 0; top: 1.7em; z-index: 5; white-space: nowrap;
@@ -149,26 +166,60 @@ _TEMPLATE = """<!doctype html>
 </style></head><body>
 <header>
   <h1>censorbot</h1>
-  <span><span class="count">{total}</span> sensitive entities detected · policy
-  <strong>{policy}</strong></span>
+  <span><span class="count">{total}</span> detected · policy <strong>{policy}</strong></span>
+  <span id="kept-note" class="kept-note"></span>
   <span class="spacer"></span>
   <button id="toggle">Reveal originals</button>
+  <button id="reset" hidden>Mask all</button>
   <button class="primary" id="copy">Copy sanitized text</button>
 </header>
 <div class="banners">{leak_banner}{risk_banner}</div>
 <div class="legend">{legend}</div>
 <div class="doc">{body}</div>
-<footer>All detection ran locally. Only the masked tokens would leave your device.</footer>
+<footer>Click any entity to keep it in the clear. All detection ran locally;
+only what you leave masked stays hidden from the external service.</footer>
 <script>
-  const SANITIZED = {sanitized_json};
+  const SEGMENTS = {segments_json};
   const b = document.body, t = document.getElementById('toggle');
+  const reset = document.getElementById('reset'), note = document.getElementById('kept-note');
+  const kept = new Set();
+
+  function refresh() {{
+    note.textContent = kept.size
+      ? '⚠ ' + kept.size + ' will be sent in the CLEAR' : '';
+    reset.hidden = kept.size === 0;
+  }}
+  // Clicking a pii toggles whether it is kept (sent as the original).
+  document.querySelectorAll('.pii').forEach(el => {{
+    const idx = +el.dataset.idx;
+    const toggle = () => {{ el.classList.toggle('kept');
+      if (el.classList.contains('kept')) kept.add(idx); else kept.delete(idx);
+      refresh(); }};
+    el.addEventListener('click', toggle);
+    el.addEventListener('keydown', e => {{ if (e.key === 'Enter' || e.key === ' ')
+      {{ e.preventDefault(); toggle(); }} }});
+  }});
+  reset.onclick = () => {{ kept.clear();
+    document.querySelectorAll('.pii.kept').forEach(el => el.classList.remove('kept'));
+    refresh(); }};
   t.onclick = () => {{ b.classList.toggle('reveal');
     t.textContent = b.classList.contains('reveal') ? 'Hide originals' : 'Reveal originals'; }};
+
+  // Rebuild the outbound text honouring the reviewer's keep choices.
+  function buildOutput() {{
+    let piiIdx = 0, out = '';
+    for (const seg of SEGMENTS) {{
+      if (seg.t === 'lit') {{ out += seg.v; }}
+      else {{ out += kept.has(piiIdx) ? seg.orig : seg.tok; piiIdx++; }}
+    }}
+    return out;
+  }}
   const copy = document.getElementById('copy');
   copy.onclick = async () => {{
-    try {{ await navigator.clipboard.writeText(SANITIZED);
+    const text = buildOutput();
+    try {{ await navigator.clipboard.writeText(text);
       copy.textContent = 'Copied ✓'; setTimeout(() => copy.textContent = 'Copy sanitized text', 1500);
-    }} catch (e) {{ alert('Sanitized text:\\n\\n' + SANITIZED); }}
+    }} catch (e) {{ alert('Text to send:\\n\\n' + text); }}
   }};
 </script>
 </body></html>"""
