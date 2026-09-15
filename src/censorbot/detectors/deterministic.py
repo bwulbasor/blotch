@@ -32,6 +32,8 @@ _IPV6 = re.compile(r"\b(?:[0-9A-Fa-f]{1,4}:){2,7}[0-9A-Fa-f]{1,4}\b")
 # Precision is recovered later: dates, IBANs and cards have their own (higher
 # confidence, usually longer) spans and win overlap resolution.
 _PHONE = re.compile(r"(?<![\w.])\+?\d[\d\s().\-]{5,17}\d(?![\w])")
+# Guards so bibliography noise isn't mistaken for phone numbers.
+_YEAR_RANGE = re.compile(r"^(?:19|20)\d{2}\s*[-–]\s*(?:19|20)\d{2}$")
 _IBAN = re.compile(r"\b[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]{1,4}){2,8}\b")
 _CARD = re.compile(r"\b(?:\d[ \-]?){13,19}\b")
 _US_SSN = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
@@ -144,9 +146,16 @@ def detect(text: str) -> list[Span]:
     # Phones: skip anything already claimed by a validated card/IBAN region later
     # via overlap resolution; emit as medium confidence.
     for m in _PHONE.finditer(text):
-        digits = sum(c.isdigit() for c in m.group(0))
-        if 7 <= digits <= 15:
-            spans.append(Span(m.start(), m.end(), EntityType.PHONE, m.group(0), 0.6, "phone"))
+        val = m.group(0)
+        digits_only = re.sub(r"\D", "", val)
+        n_digits = len(digits_only)
+        if not (7 <= n_digits <= 15):
+            continue
+        if _YEAR_RANGE.match(val.strip()):
+            continue  # "2012-2013" is a year range, not a phone
+        if n_digits == 13 and digits_only.startswith(("978", "979")):
+            continue  # ISBN-13
+        spans.append(Span(m.start(), m.end(), EntityType.PHONE, val, 0.6, "phone"))
 
     # Labelled identifiers.
     for m in _LABELLED.finditer(text):

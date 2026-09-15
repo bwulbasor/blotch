@@ -73,6 +73,13 @@ def test_mac_not_confused_with_ipv6():
     assert macs
 
 
+def test_phone_ignores_isbn_and_year_range():
+    assert EntityType.PHONE not in _types("ISBN 978-0-262-01202-7 in refs")
+    assert EntityType.PHONE not in _types("active 2012-2013 period")
+    # a genuine phone is still caught
+    assert EntityType.PHONE in _types("call +1 (415) 555-0132 today")
+
+
 def test_short_month_date_not_case_id():
     # "1 Jan 1990" is a date, not a court case number
     types = _types("born 1 Jan 1990 in town")
