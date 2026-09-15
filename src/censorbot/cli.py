@@ -59,8 +59,12 @@ def _cmd_sanitize(args) -> int:
               "(the residual material will be recorded).", file=sys.stderr)
         return 2
 
-    with open(args.out, "w", encoding="utf-8") as fh:
-        fh.write(result.sanitized_text)
+    from .docwriter import VerificationError, write_document
+    try:
+        write_document(args.out, result.sanitized_text, vault=result.vault, verify=True)
+    except VerificationError as exc:
+        print(f"[BLOCKED] regenerated output failed verification: {exc}", file=sys.stderr)
+        return 3
     result.vault.save(args.vault, passphrase=args.passphrase,
                       allow_plaintext=args.allow_plaintext)
 

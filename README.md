@@ -82,7 +82,7 @@ Plain ASCII `[[TYPE_NNN]]` (e.g. `[[PERSON_001]]`, `[[PATIENT_ID_017]]`):
 pip install -e .                 # core (pure stdlib, zero required deps)
 pip install -e '.[crypto]'       # encrypted vault at rest (AES-256-GCM)
 pip install -e '.[ner]'          # spaCy NER (better PERSON/ORG/LOC recall)
-pip install -e '.[docs]'         # PDF + DOCX ingestion
+pip install -e '.[docs]'         # PDF + DOCX ingestion and regenerated output
 pip install -e '.[all,dev]'      # everything + pytest
 ```
 
@@ -201,7 +201,8 @@ reference ID · Account ID.
 - [x] Benchmark harness (recall, leak rate, round-trip, scan-block rate)
 - [x] Provider-agnostic `Gateway` (the external service is fully replaceable)
 - [x] `POST /sanitize|/restore|/inspect` local daemon (loopback, zero deps)
-- [ ] Regenerated sanitised **PDF/DOCX** output (currently text out)
+- [x] Regenerated sanitised **TXT/DOCX/PDF** output, verified on read-back
+- [ ] Layout/appearance-preserving output (same verification bar)
 - [ ] Visual review/preview UI
 - [ ] Semantic-preservation metric (needs a real model in the loop)
 - [ ] Domain entity packs; synthetic/generalised strategies
