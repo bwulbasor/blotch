@@ -113,6 +113,65 @@ def _cmd_review(args) -> int:
     return 0
 
 
+def _cmd_batch(args) -> int:
+    from .docwriter import VerificationError, write_document
+    from .ingest import SUPPORTED
+    policy = _policy(args)
+    os.makedirs(args.outdir, exist_ok=True)
+    os.makedirs(args.vaultdir, exist_ok=True)
+    if not args.passphrase and not args.allow_plaintext:
+        print("[error] batch needs --passphrase (or --allow-plaintext) for vaults",
+              file=sys.stderr)
+        return 2
+
+    files: list[str] = []
+    for root, _dirs, names in os.walk(args.indir):
+        for name in names:
+            if os.path.splitext(name)[1].lower() in SUPPORTED:
+                files.append(os.path.join(root, name))
+    if not files:
+        print(f"no supported files ({', '.join(SUPPORTED)}) under {args.indir}")
+        return 0
+
+    done = blocked = failed = 0
+    total_entities = 0
+    for path in sorted(files):
+        rel = os.path.relpath(path, args.indir)
+        stem = os.path.splitext(rel)[0].replace(os.sep, "__")
+        try:
+            text = load_text(path)
+            result = sanitize(text, policy, use_spacy=not args.no_spacy)
+        except Exception as exc:  # noqa: BLE001
+            print(f"  FAIL   {rel}: {exc}", file=sys.stderr)
+            failed += 1
+            continue
+        report = result.leak_report
+        if report and report.blocked and not args.force:
+            print(f"  BLOCK  {rel}: {report.summary()}", file=sys.stderr)
+            blocked += 1
+            continue
+        out_ext = os.path.splitext(rel)[1] if not args.txt else ".txt"
+        out_path = os.path.join(args.outdir, stem + out_ext)
+        vault_path = os.path.join(args.vaultdir, stem + ".cbv")
+        try:
+            write_document(out_path, result.sanitized_text, vault=result.vault,
+                           verify=True)
+        except VerificationError as exc:
+            print(f"  BLOCK  {rel}: output failed verification: {exc}", file=sys.stderr)
+            blocked += 1
+            continue
+        result.vault.save(vault_path, passphrase=args.passphrase,
+                          allow_plaintext=args.allow_plaintext)
+        total_entities += result.entity_count()
+        done += 1
+        print(f"  ok     {rel} -> {os.path.basename(out_path)} "
+              f"({result.entity_count()} entities)")
+
+    print(f"\nbatch: {done} sanitized, {blocked} blocked, {failed} failed; "
+          f"{total_entities} entities total")
+    return 1 if (blocked or failed) else 0
+
+
 def _cmd_serve(args) -> int:
     from .server import serve
     serve(host=args.host, port=args.port)
@@ -187,6 +246,20 @@ def build_parser() -> argparse.ArgumentParser:
     rev.add_argument("file")
     rev.add_argument("--out", required=True, help="path for the HTML review page")
     rev.set_defaults(func=_cmd_review)
+
+    bat = sub.add_parser("batch", parents=[common],
+                         help="sanitise every supported file in a directory tree")
+    bat.add_argument("indir")
+    bat.add_argument("--outdir", required=True, help="directory for sanitized documents")
+    bat.add_argument("--vaultdir", required=True, help="directory for per-file vaults")
+    bat.add_argument("--passphrase", help="encrypt every vault with this passphrase")
+    bat.add_argument("--allow-plaintext", action="store_true",
+                     help="permit unencrypted vaults (not recommended)")
+    bat.add_argument("--txt", action="store_true",
+                     help="always write .txt output instead of the source format")
+    bat.add_argument("--force", action="store_true",
+                     help="write outputs even if the leak scan blocks")
+    bat.set_defaults(func=_cmd_batch)
 
     srv = sub.add_parser("serve", help="run the local gateway HTTP daemon")
     srv.add_argument("--host", default="127.0.0.1", help="bind address (loopback only)")

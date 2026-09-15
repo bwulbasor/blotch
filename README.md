@@ -119,6 +119,10 @@ censorbot review examples/discharge_summary.txt --out review.html --policy medic
 
 # Advisory: residual re-identification risk after names/IDs are removed
 censorbot risk examples/discharge_summary.txt --policy medical
+
+# Sanitise a whole directory tree (one encrypted vault per file)
+censorbot batch ./docs --outdir ./safe --vaultdir ./vaults \
+    --policy legal --passphrase "…"
 ```
 
 `sanitize` refuses to write if the leak scan isn't clean (override with
