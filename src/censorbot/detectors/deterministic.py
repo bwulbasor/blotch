@@ -35,6 +35,21 @@ _PHONE = re.compile(r"(?<![\w.])\+?\d[\d\s().\-]{5,17}\d(?![\w])")
 _IBAN = re.compile(r"\b[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]{1,4}){2,8}\b")
 _CARD = re.compile(r"\b(?:\d[ \-]?){13,19}\b")
 _US_SSN = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
+# Street addresses. English form: number + name words + street-type suffix.
+_STREET_TYPES = (
+    "Street|St|Avenue|Ave|Road|Rd|Lane|Ln|Boulevard|Blvd|Drive|Dr|Way|Court|Ct|"
+    "Place|Pl|Square|Sq|Terrace|Ter|Parkway|Pkwy|Highway|Hwy|Close|Crescent"
+)
+_STREET_EN = re.compile(
+    rf"\b\d{{1,5}}[A-Za-z]?\s+(?:[A-ZÄÖÜ][A-Za-zäöüß.'\-]+\s+){{1,3}}"
+    rf"(?:{_STREET_TYPES})\b\.?",
+)
+# German/Austrian compound street + number ("Hauptstraße 12", "Ringgasse 4a").
+_STREET_DE = re.compile(
+    r"\b[A-ZÄÖÜ][a-zäöüß]+(?:straße|strasse|gasse|weg|platz|allee|ring)\s+\d{1,4}[a-z]?\b"
+)
+# UK postcode - distinctive enough to detect standalone.
+_UK_POSTCODE = re.compile(r"\b[A-Z]{1,2}\d[A-Z\d]?\s+\d[A-Z]{2}\b")
 # Court / reference numbers like "AZ 73 C 226", "17 C 391/26", "5 Ob 12/25":
 # number, short letter code, number, optional /year. Distinctive enough that a
 # bare digit-letter-digit run in prose rarely collides.
@@ -99,6 +114,9 @@ def detect(text: str) -> list[Span]:
     spans += _yield(_IPV4, text, EntityType.IP, "ipv4", 0.9)
     spans += _yield(_IPV6, text, EntityType.IP, "ipv6", 0.9)
     spans += _yield(_US_SSN, text, EntityType.GOV_ID, "us_ssn", 0.9)
+    spans += _yield(_STREET_EN, text, EntityType.ADDRESS, "street_en", 0.85)
+    spans += _yield(_STREET_DE, text, EntityType.ADDRESS, "street_de", 0.85)
+    spans += _yield(_UK_POSTCODE, text, EntityType.ADDRESS, "uk_postcode", 0.85)
     spans += _yield(_CASE_NUM, text, EntityType.CASE_ID, "case_num", 0.8)
     spans += _yield(_DATE, text, EntityType.DATE, "date", 0.7)
 

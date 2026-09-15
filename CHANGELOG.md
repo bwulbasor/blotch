@@ -38,6 +38,12 @@ follows [Keep a Changelog](https://keepachangelog.com/).
   caught at every whole-word position (fixes sentence-initial leaks).
 - Synthetic eval and the leak benchmark both gate CI.
 
+### Detection coverage
+- Added **postal-address detection**: English street addresses (number + name +
+  street type), German/Austrian compound streets ("Hauptstraße 12"), and UK
+  postcodes. Conservative patterns keep precision (plain numbers and
+  "Section 5 Way" do not match).
+
 ### Notes
 - Byte-exact round-trip holds when a token's occurrences share a surface form;
   co-referent mentions with differing surfaces restore to one canonical value.

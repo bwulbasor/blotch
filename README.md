@@ -224,9 +224,9 @@ ingest → detect (Layer A regex+checksum, Layer B NER) → resolve overlaps
 
 ## Detected categories (MVP)
 
-Person · Email · Phone · Address · Date/DOB · Organization · Location · IBAN
-(mod-97) · Credit card (Luhn) · IP · URL · Government ID · Patient ID · Case/
-reference ID · Account ID.
+Person · Email · Phone · Address (street + UK postcode) · Date/DOB ·
+Organization · Location · IBAN (mod-97) · Credit card (Luhn) · IP · URL ·
+Government ID · Patient ID · Case/reference ID · Account ID.
 
 ## Evaluation
 

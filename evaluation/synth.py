@@ -99,6 +99,10 @@ _DATE_FORMS = [
     "14 March 2026", "2026-03-14", "March 14, 2026", "14/03/2026", "3.14.2026",
     "1 Jan 1990",
 ]
+_ADDRESSES = [
+    "221 Baker Street", "1600 Pennsylvania Avenue", "10 Downing Street",
+    "Hauptstraße 12", "Ringgasse 4a", "45 Maple Drive", "SW1A 1AA",
+]
 
 
 def _name(rng: random.Random) -> str:
@@ -131,6 +135,7 @@ def medical_doc(rng: random.Random) -> LabeledDoc:
     b.lit(" and IBAN ").ent(EntityType.IBAN, rng.choice(_IBANS)).lit(".\n")
     b.lit("Emergency contact: ").ent(EntityType.PERSON, _name(rng)).lit(", ")
     b.ent(EntityType.PHONE, rng.choice(_PHONES)).lit(".\n")
+    b.lit("Home address: ").ent(EntityType.ADDRESS, rng.choice(_ADDRESSES)).lit(".\n")
     b.lit("Records server: ").ent(EntityType.IP, f"192.168.{rng.randint(0,255)}.{rng.randint(1,254)}")
     b.lit(".\n")
     return b.build("medical")
@@ -155,6 +160,7 @@ def finance_doc(rng: random.Random) -> LabeledDoc:
     b = _Builder()
     name = _name(rng)
     b.lit("INVOICE\n\nBill to: ").ent(EntityType.PERSON, name).lit("\n")
+    b.lit("Ship to: ").ent(EntityType.ADDRESS, rng.choice(_ADDRESSES)).lit("\n")
     b.lit("Account: ").ent(EntityType.ACCOUNT_ID, f"ACC-{rng.randint(100000,999999)}").lit("\n")
     b.lit("Card on file: ").ent(EntityType.CREDIT_CARD, rng.choice(_CARDS)).lit("\n")
     b.lit("IBAN: ").ent(EntityType.IBAN, rng.choice(_IBANS)).lit("\n")
