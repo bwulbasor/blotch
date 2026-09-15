@@ -28,6 +28,13 @@
     {"id": "gdpr", "category": "legal-reference", "kind": "wikipedia",
      "title": "General Data Protection Regulation", "license": "CC-BY-SA"},
     {"id": "hipaa", "category": "legal-reference", "kind": "wikipedia",
-     "title": "Health Insurance Portability and Accountability Act", "license": "CC-BY-SA"}
+     "title": "Health Insurance Portability and Accountability Act", "license": "CC-BY-SA"},
+
+    {"id": "rfc5321_smtp", "category": "technical", "kind": "url",
+     "url": "https://www.rfc-editor.org/rfc/rfc5321.txt",
+     "license": "IETF-Trust", "max_chars": 240000},
+    {"id": "rfc2616_http", "category": "technical", "kind": "url",
+     "url": "https://www.rfc-editor.org/rfc/rfc2616.txt",
+     "license": "IETF-Trust", "max_chars": 240000}
   ]
 }

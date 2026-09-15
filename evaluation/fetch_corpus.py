@@ -62,8 +62,10 @@ def fetch(manifest_path: str | None = None) -> list[dict]:
         try:
             if src["kind"] == "wikipedia":
                 text = _wikipedia_extract(src["title"])
-            else:
+            elif src["kind"] == "gutenberg":
                 text = _clean_gutenberg(_get(src["url"]))
+            else:  # "url": raw fetch (RFCs, plain-text docs)
+                text = _get(src["url"])
             if "max_chars" in src:
                 text = text[: src["max_chars"]]
             with open(out_path, "w", encoding="utf-8") as fh:
