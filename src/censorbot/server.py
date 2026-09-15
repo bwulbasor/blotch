@@ -176,8 +176,15 @@ sanitized version is shown for you to copy. Nothing is sent anywhere.</p>
  <span id="status"></span>
 </div>
 <div id="out"></div>
+<div id="rt" hidden>
+ <h3>2 · Paste the external service's reply to rehydrate it locally</h3>
+ <textarea id="reply" placeholder="Paste the model/service reply containing the [[TOKENS]]..."></textarea>
+ <div class="row"><button id="res">Restore</button><span id="rstatus"></span></div>
+ <div id="rout"></div>
+</div>
 <script>
  const $=s=>document.querySelector(s);
+ let VAULT=null;
  fetch('/policies').then(r=>r.json()).then(d=>{
    $('#policy').innerHTML=d.policies.map(p=>`<option${p=='personal'?' selected':''}>${p}</option>`).join('');
  });
@@ -187,11 +194,20 @@ sanitized version is shown for you to copy. Nothing is sent anywhere.</p>
  $('#san').onclick=async()=>{
    $('#status').textContent='working...';
    const d=await post('/sanitize',{text:$('#in').value,policy:$('#policy').value,use_spacy:false});
+   VAULT=d.vault;  // kept in this page's memory only, never re-sent anywhere
    $('#status').innerHTML=d.leak.clean?'<span class="ok">leak scan: clean</span>':'<span class="bad">'+esc(d.leak.summary)+'</span>';
-   $('#out').innerHTML='<h3>Sanitized ('+d.counts.tokenized+' tokenized)</h3>'+
-     '<pre id="s">'+esc(d.sanitized)+'</pre><button id="cp">Copy</button>';
+   $('#out').innerHTML='<h3>1 · Sanitized ('+d.counts.tokenized+' tokenized) \\u2014 send THIS to the model</h3>'+
+     '<pre id="s">'+esc(d.sanitized)+'</pre><button id="cp">Copy sanitized</button>';
    $('#cp').onclick=async()=>{try{await navigator.clipboard.writeText(d.sanitized);
      $('#cp').textContent='Copied \\u2713';}catch(e){}};
+   $('#rt').hidden=false;
+ };
+ $('#res').onclick=async()=>{
+   if(!VAULT){$('#rstatus').textContent='sanitize a document first';return;}
+   $('#rstatus').textContent='working...';
+   const d=await post('/restore',{text:$('#reply').value,vault:VAULT});
+   $('#rstatus').innerHTML=d.anomalies?'<span class="bad">token anomalies: invented '+JSON.stringify(d.invented)+'</span>':'<span class="ok">restored '+d.restored_tokens.length+' token(s)</span>';
+   $('#rout').innerHTML='<h3>Rehydrated result</h3><pre>'+esc(d.restored)+'</pre>';
  };
  $('#insp').onclick=async()=>{
    $('#status').textContent='working...';
