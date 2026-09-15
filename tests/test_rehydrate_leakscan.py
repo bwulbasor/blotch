@@ -16,6 +16,19 @@ def test_invented_token_not_rehydrated():
     assert r.has_anomalies
 
 
+def test_tolerant_rehydration_of_mangled_tokens():
+    result = _san("Alejandro Martinez, patient 48392017.", "medical")
+    v = result.vault
+    # spaces inside brackets
+    assert "Alejandro Martinez" in restore("see [[ PERSON_001 ]] ok", v).text
+    # markdown backslash-escaped brackets/underscores
+    assert "Alejandro Martinez" in restore(r"see \[\[PERSON\_001\]\] ok", v).text
+    # multi-word type still works
+    assert "48392017" in restore("id **[[PATIENT_ID_001]]**", v).text
+    # a genuine non-token is left untouched
+    assert restore("keep [[hello world]] here", v).text == "keep [[hello world]] here"
+
+
 def test_dropped_token_reported():
     result = _san("Email a.martinez@example.com and b@example.com.")
     # response drops all tokens

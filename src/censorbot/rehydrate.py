@@ -7,10 +7,18 @@ anomalous so the caller can decide rather than silently trusting model output.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from .tokens import TOKEN_RE, find_tokens
 from .vault import Vault
+
+# A token region tolerant of what models do to tokens: internal spaces
+# ("[[ PERSON_001 ]]") and markdown backslash-escapes ("\[\[PERSON\_001\]\]").
+# The inner text is normalised (escapes + spaces stripped) and checked against
+# the strict TYPE_NNN shape, so ordinary "[[not a token]]" is left untouched.
+_TOK_REGION = re.compile(r"\\?\[\s*\\?\[(.*?)\\?\]\s*\\?\]", re.S)
+_INNER = re.compile(r"([A-Z][A-Z_]*)_(\d{3,})")
 
 
 @dataclass
@@ -45,7 +53,11 @@ def restore(text: str, vault: Vault) -> RestoreResult:
     invented: list[str] = []
 
     def _sub(m) -> str:
-        token = m.group(0)
+        inner = m.group(1).replace("\\", "").replace(" ", "").replace("\t", "")
+        im = _INNER.fullmatch(inner)
+        if not im:
+            return m.group(0)  # "[[not a token]]" - leave it alone
+        token = f"[[{inner}]]"
         seen.add(token)
         if token in issued:
             if token not in restored:
@@ -53,9 +65,9 @@ def restore(text: str, vault: Vault) -> RestoreResult:
             return vault.value_for(token) or token
         if token not in invented:
             invented.append(token)
-        return token  # leave invented tokens untouched
+        return m.group(0)  # leave invented tokens (in original form) untouched
 
-    out = TOKEN_RE.sub(_sub, text)
+    out = _TOK_REGION.sub(_sub, text)
     dropped = [t for t in issued if t not in seen]
     return RestoreResult(text=out, restored=restored, invented=invented, dropped=dropped)
 
