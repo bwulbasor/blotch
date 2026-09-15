@@ -295,6 +295,17 @@ benchmark flagged that its human/gold labels did not, and adding those
 non-name words, raised precision **65% → 94% on TAB** and **72% → 84% on
 AI4Privacy — with no loss of recall** (DIRECT still 100%, names still 99%).
 
+The most effective, and most principled, fix is language- and domain-agnostic:
+**a lone capitalised word whose lower-case form also appears in the same document
+is a common word, not a name** (`Content`/`content` → common; `Klensin` → only
+ever capitalised → a name). On technical documents (RFCs) this cut name/org
+over-detection **~85%** (6910 → 1042 span detections) while *improving* TAB
+precision and losing no real names — the author names are correctly kept. It is
+applied only to lone words: a multi-word name of common words (`May Rich`) can
+have both parts appear lower-case, so extending it there would leak.
+Technical/structured text stays the hardest case for any NER (spaCy over-detects
+there too); this gets the dependency-free heuristic most of the way.
+
 Getting here was the point of the exercise: the first TAB run scored only **62%**
 DIRECT recall — all case/application numbers (`36110/97`) were missed — and
 AI4Privacy exposed that Luhn-gated card detection missed 84% of card-shaped
