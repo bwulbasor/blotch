@@ -75,3 +75,33 @@ def get_policy(name: str) -> Policy:
         return BUILTIN[name]
     except KeyError:
         raise ValueError(f"unknown policy {name!r}; choose from {sorted(BUILTIN)}")
+
+
+def policy_from_dict(data: dict) -> Policy:
+    """Build a custom :class:`Policy` from a plain dict (plan §5 "Custom").
+
+    Shape::
+
+        {"name": "my-policy", "default": "keep",
+         "actions": {"PERSON": "tokenize", "DATE": "keep", "GOV_ID": "redact"}}
+
+    Unknown entity types or actions raise ``ValueError`` rather than being
+    silently ignored - a misspelled ``PERSN`` must not quietly leak persons.
+    """
+
+    name = data.get("name", "custom")
+    default = Action(data.get("default", "keep"))
+    actions: dict[EntityType, Action] = {}
+    for key, val in data.get("actions", {}).items():
+        try:
+            etype = EntityType(key)
+        except ValueError:
+            raise ValueError(f"unknown entity type in policy: {key!r}")
+        actions[etype] = Action(val)
+    return Policy(name=name, actions=actions, default=default)
+
+
+def load_policy_file(path: str) -> Policy:
+    import json
+    with open(path, encoding="utf-8") as fh:
+        return policy_from_dict(json.load(fh))

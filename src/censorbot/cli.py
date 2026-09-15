@@ -17,9 +17,16 @@ import sys
 from . import __version__
 from .ingest import load_text
 from .pipeline import preview, sanitize
-from .policy import BUILTIN, get_policy
+from .policy import BUILTIN, get_policy, load_policy_file
 from .rehydrate import restore
 from .vault import Vault
+
+
+def _policy(args):
+    """Resolve a built-in policy name or a --policy-file into a Policy."""
+    if getattr(args, "policy_file", None):
+        return load_policy_file(args.policy_file)
+    return get_policy(args.policy)
 
 
 def _read(path: str) -> str:
@@ -31,7 +38,7 @@ def _read(path: str) -> str:
 
 def _cmd_inspect(args) -> int:
     text = _read(args.file)
-    policy = get_policy(args.policy)
+    policy = _policy(args)
     result = sanitize(text, policy, use_spacy=not args.no_spacy)
     print(f"Policy: {policy.name}")
     print(f"Detected {result.entity_count()} entity/entities "
@@ -57,7 +64,7 @@ def _cmd_risk(args) -> int:
     from .reidrisk import assess
     text = _read(args.file)
     # assess the sanitized version - what would actually leave the device
-    result = sanitize(text, get_policy(args.policy), use_spacy=not args.no_spacy)
+    result = sanitize(text, _policy(args), use_spacy=not args.no_spacy)
     risk = assess(result.sanitized_text)
     print(risk.summary())
     for f in risk.findings:
@@ -67,7 +74,7 @@ def _cmd_risk(args) -> int:
 
 def _cmd_sanitize(args) -> int:
     text = _read(args.file)
-    policy = get_policy(args.policy)
+    policy = _policy(args)
     result = sanitize(text, policy, use_spacy=not args.no_spacy)
 
     report = result.leak_report
@@ -98,7 +105,7 @@ def _cmd_sanitize(args) -> int:
 def _cmd_review(args) -> int:
     from .review import render_review_html
     text = _read(args.file)
-    policy = get_policy(args.policy)
+    policy = _policy(args)
     html_out = render_review_html(text, policy, use_spacy=not args.no_spacy)
     with open(args.out, "w", encoding="utf-8") as fh:
         fh.write(html_out)
@@ -114,7 +121,7 @@ def _cmd_serve(args) -> int:
 
 def _cmd_benchmark(args) -> int:
     from .benchmark import run_benchmark
-    policy = get_policy(args.policy)
+    policy = _policy(args)
     result = run_benchmark(policy, use_spacy=not args.no_spacy)
     print(f"Policy: {policy.name}")
     print(result.report())
@@ -148,6 +155,8 @@ def build_parser() -> argparse.ArgumentParser:
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--policy", default="personal",
                         choices=sorted(BUILTIN), help="privacy policy (default: personal)")
+    common.add_argument("--policy-file",
+                        help="path to a custom policy JSON (overrides --policy)")
     common.add_argument("--no-spacy", action="store_true",
                         help="skip spaCy NER even if installed (use heuristics)")
 

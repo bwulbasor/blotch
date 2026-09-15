@@ -173,7 +173,34 @@ is stateless and loopback-bound, so the mapping never leaves the machine.
 ## Privacy policies
 
 Modes, not dozens of switches: `maximum`, `personal`, `medical`, `legal`. Each
-maps entity types to an action (`tokenize` / `redact` / `keep`).
+maps entity types to an action (`tokenize` / `redact` / `keep`). For fine-grained
+control, pass a custom policy JSON with `--policy-file`:
+
+```json
+{ "name": "names-and-ids", "default": "keep",
+  "actions": { "PERSON": "tokenize", "IBAN": "tokenize", "GOV_ID": "redact" } }
+```
+
+Unknown entity types are rejected (a typo must not silently leak a category), and
+the outbound leak scanner still blocks if a custom policy leaves a high-confidence
+identifier behind.
+
+## Provider adapters
+
+`censorbot.providers` ships dependency-free adapters so the gateway can talk to
+any JSON/HTTP service — only the sanitised text is ever sent:
+
+```python
+from censorbot import Gateway, get_policy
+from censorbot.providers import openai_chat_provider
+
+provider = openai_chat_provider(
+    "https://api.openai.com/v1/chat/completions", api_key=KEY, model="gpt-4o-mini")
+result = Gateway(get_policy("legal"), provider).run(text)
+```
+
+`HttpProvider(url, build_payload=…, response_path="choices.0.message.content")`
+covers any other endpoint (local llama.cpp/vLLM/Ollama shims, company APIs).
 
 ## Round-trip fidelity & coreference
 
