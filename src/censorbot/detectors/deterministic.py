@@ -57,6 +57,10 @@ _UK_POSTCODE = re.compile(r"\b[A-Z]{1,2}\d[A-Z\d]?\s+\d[A-Z]{2}\b")
 # US "State ZIP" in address context (comma-anchored to avoid matching "IN 12345"
 # style false positives): e.g. "Springfield, IL 62704" / "..., CA 90210-1234".
 _US_STATE_ZIP = re.compile(r",\s*(?P<sz>[A-Z]{2}\s+\d{5}(?:-\d{4})?)\b")
+# Explicitly-labelled postal code ("ZIP code 64526", "postal code 99578"). A bare
+# 5-digit number is too ambiguous to catch, but a labelled one is unambiguous.
+_ZIP_LABELLED = re.compile(r"\b(?:zip|postal|post)[ \t]*(?:code)?[ \t]*[:#]?[ \t]*"
+                           r"(?P<z>\d{5}(?:-\d{4})?)\b", re.IGNORECASE)
 # Bank SWIFT/BIC code - only when labelled, since a bare 8-letter run is common.
 _BIC = re.compile(
     r"\b(?:BIC|SWIFT)\b\s*(?:code)?\s*[:#]?\s*"
@@ -158,6 +162,9 @@ def detect(text: str) -> list[Span]:
     for m in _US_STATE_ZIP.finditer(text):
         spans.append(Span(m.start("sz"), m.end("sz"), EntityType.ADDRESS,
                           m.group("sz"), 0.8, "us_state_zip"))
+    for m in _ZIP_LABELLED.finditer(text):
+        spans.append(Span(m.start("z"), m.end("z"), EntityType.ADDRESS,
+                          m.group("z"), 0.8, "zip_labelled"))
     for m in _BIC.finditer(text):
         spans.append(Span(m.start("bic"), m.end("bic"), EntityType.ACCOUNT_ID,
                           m.group("bic"), 0.9, "bic"))
