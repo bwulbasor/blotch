@@ -148,7 +148,11 @@ _NON_NAME = {w.lower() for w in _STOPWORDS} | {
     "category", "obsoletes", "updates", "ipv", "smtp", "http", "https", "ftp",
     "tcp", "udp", "dns", "uri", "api", "sdk", "html", "xml", "json", "css",
     "uuid", "ascii", "utf", "mime", "imap", "ssl", "tls", "ssh", "vpn", "see",
-    "last",
+    "last", "mail", "extension", "extensions", "expect", "expires", "requested",
+    "match", "command", "commands", "minutes", "vary", "partial", "etag", "uris",
+    "chunked", "referer", "referrer", "pragma", "upgrade", "allow", "retry",
+    "redirect", "timeout", "offset", "checksum", "digest", "boundary", "charset",
+    "codec", "keepalive", "reply", "sender", "subject", "received",
     # ORG-suffix words also drop when standing alone (a lone "Court"/"Bank" is
     # not an org and not a name)
     "hospital", "clinic", "university", "bank", "group", "foundation", "company",
