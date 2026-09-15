@@ -73,15 +73,15 @@ def sanitize(text: str, policy: Policy, *, use_ner: bool = True,
             edits.append((span.start, span.end, replacement))
             for k in range(span.start, span.end):
                 covered[k] = 1
-        # Record each surface for propagation (tokenised entities only).
-        if action == Action.TOKENIZE:
-            for surface in {m.value for m in entity.members} | {entity.canonical}:
-                if len(surface) < 2:
-                    continue
-                if surface in surface_token and surface_token[surface] != replacement:
-                    surface_token[surface] = None  # shared by 2 entities -> ambiguous
-                elif surface not in surface_token:
-                    surface_token[surface] = replacement
+        # Record each surface for propagation (both TOKENIZE and REDACT, so a
+        # redacted value is removed at every occurrence, not just detected ones).
+        for surface in {m.value for m in entity.members} | {entity.canonical}:
+            if len(surface) < 2:
+                continue
+            if surface in surface_token and surface_token[surface] != replacement:
+                surface_token[surface] = None  # shared by 2 entities -> ambiguous
+            elif surface not in surface_token:
+                surface_token[surface] = replacement
 
     # Occurrence propagation (plan §2): once a surface is known sensitive, catch
     # *every* whole-word occurrence, including ones the detectors skipped (e.g. a

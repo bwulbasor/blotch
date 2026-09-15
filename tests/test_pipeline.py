@@ -49,6 +49,16 @@ def test_preview_masks_sensitive():
     assert "Alejandro Martinez" not in masked
 
 
+def test_redact_propagates_all_occurrences():
+    from censorbot.policy import policy_from_dict
+    p = policy_from_dict({"name": "r", "default": "keep",
+                          "actions": {"PERSON": "redact"}})
+    text = "Curie won it. Later, Curie spoke. Marie Curie was cited."
+    r = sanitize(text, p, use_spacy=False)
+    assert "Curie" not in r.sanitized_text
+    assert "[REDACTED]" in r.sanitized_text
+
+
 def test_keep_policy_leaves_dates_in_personal():
     # personal policy keeps generic DATE
     result = sanitize("Meeting on 14 March 2026.", get_policy("personal"), use_spacy=False)
