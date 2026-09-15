@@ -228,6 +228,30 @@ Person · Email · Phone · Address · Date/DOB · Organization · Location · I
 (mod-97) · Credit card (Luhn) · IP · URL · Government ID · Patient ID · Case/
 reference ID · Account ID.
 
+## Evaluation
+
+The `evaluation/` subsystem measures the engine on hard inputs:
+
+```bash
+python -m evaluation.evaluate      # synthetic docs WITH ground truth → precision/recall
+python -m evaluation.fetch_corpus  # download public-domain / public-record docs
+python -m evaluation.run_wild      # run over real docs: throughput, crashes, leak-scan
+```
+
+* **Synthetic set** (`synth.py`) generates labelled documents with a hard-case
+  bank — names that are common words, Unicode/apostrophe/hyphen names,
+  international phones, multi-country checksum-valid IBANs, ambiguous numbers,
+  court case numbers, and coreference. Current result (heuristic NER): **100%
+  coverage recall, 0% leak** across 13 entity types (this gates CI).
+* **Wild corpus** (`fetch_corpus.py`, gitignored) pulls public-domain literature
+  and public-figure/reference Wikipedia articles. On ~890K chars: **0 crashes,
+  leak-scan clean on every document**, ~40K chars/sec (heuristic path).
+
+Building this corpus drove out four real bugs — court case numbers, non-Latin
+uppercase names, a colon mis-read as a sentence boundary, and a resolver bug that
+split one surname into dozens of entities and leaked it at sentence starts. Each
+is now a committed regression test.
+
 ## Roadmap
 
 - [x] Local ingestion + deterministic detection (checksum-validated)

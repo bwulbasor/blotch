@@ -25,3 +25,5 @@ jobs:
         run: pytest -q
       - name: Leak benchmark (fails the build on any leak)
         run: python -m censorbot.cli benchmark --policy maximum --no-spacy
+      - name: Synthetic evaluation (fails on any leaked gold span)
+        run: python -m evaluation.evaluate

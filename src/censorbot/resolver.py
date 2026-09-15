@@ -94,14 +94,24 @@ def resolve(spans: list[Span]) -> list[Entity]:
         else:
             partials.append(span)
 
+    unmatched_by_norm: dict[str, Entity] = {}
     for span in partials:
         parts = set(_name_parts(span.value))
         matches = [e for e in full if parts & set(_name_parts(e.canonical))]
         if len(matches) == 1:
             matches[0].members.append(span)
         else:
-            # zero or ambiguous -> its own entity (conservative).
-            full.append(Entity(EntityType.PERSON, span.value.strip(), [span]))
+            # Zero or ambiguous full-name match. Group all occurrences of the same
+            # surface into ONE entity (not one-per-occurrence): every "Curie" that
+            # can't be pinned to a single full name is still the same token, so the
+            # surface propagates consistently and doesn't leak at sentence starts.
+            norm = " ".join(_name_parts(span.value))
+            ent = unmatched_by_norm.get(norm)
+            if ent is None:
+                ent = Entity(EntityType.PERSON, span.value.strip(), [])
+                unmatched_by_norm[norm] = ent
+                full.append(ent)
+            ent.members.append(span)
 
     entities.extend(full)
 

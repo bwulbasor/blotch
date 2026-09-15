@@ -35,6 +35,10 @@ _PHONE = re.compile(r"(?<![\w.])\+?\d[\d\s().\-]{5,17}\d(?![\w])")
 _IBAN = re.compile(r"\b[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]{1,4}){2,8}\b")
 _CARD = re.compile(r"\b(?:\d[ \-]?){13,19}\b")
 _US_SSN = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
+# Court / reference numbers like "AZ 73 C 226", "17 C 391/26", "5 Ob 12/25":
+# number, short letter code, number, optional /year. Distinctive enough that a
+# bare digit-letter-digit run in prose rarely collides.
+_CASE_NUM = re.compile(r"\b(?:AZ\s+)?\d{1,4}\s+[A-Z][A-Za-z]{0,3}\s+\d{1,4}(?:\s*/\s*\d{2,4})?\b")
 # Explicitly-labelled identifiers: "Patient No: 48392017", "Case AZ 17 C 391/26".
 _LABELLED = re.compile(
     r"\b(?P<label>patient|case|file|account|acct|reference|ref|invoice|policy|"
@@ -95,6 +99,7 @@ def detect(text: str) -> list[Span]:
     spans += _yield(_IPV4, text, EntityType.IP, "ipv4", 0.9)
     spans += _yield(_IPV6, text, EntityType.IP, "ipv6", 0.9)
     spans += _yield(_US_SSN, text, EntityType.GOV_ID, "us_ssn", 0.9)
+    spans += _yield(_CASE_NUM, text, EntityType.CASE_ID, "case_num", 0.8)
     spans += _yield(_DATE, text, EntityType.DATE, "date", 0.7)
 
     # Validated detectors: only emit on checksum pass (high precision).

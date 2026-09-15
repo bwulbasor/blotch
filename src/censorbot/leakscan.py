@@ -9,6 +9,7 @@ end, but it is never silent either.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from .detectors import deterministic
@@ -41,6 +42,21 @@ class LeakReport:
         return "BLOCKED: " + "; ".join(parts)
 
 
+def _appears_as_token(value: str, text: str) -> bool:
+    """Whole-word, case-sensitive check that ``value`` still appears in ``text``.
+
+    Word boundaries matter: the naive ``value in text`` flags a short value like
+    "Count" inside "Country" or "EU" inside "Europe", which would make the scanner
+    block almost every real document. A boundary is added only on an edge that is
+    itself a word character, so values wrapped in punctuation/spaces (emails,
+    IBANs) still match correctly.
+    """
+
+    left = r"(?<!\w)" if value[:1].isalnum() or value[:1] == "_" else ""
+    right = r"(?!\w)" if value[-1:].isalnum() or value[-1:] == "_" else ""
+    return re.search(left + re.escape(value) + right, text) is not None
+
+
 def scan(sanitized_text: str, vault: Vault | None = None,
          threshold: float = BLOCK_THRESHOLD) -> LeakReport:
     """Scan text destined for an external service. Returns a :class:`LeakReport`.
@@ -57,7 +73,9 @@ def scan(sanitized_text: str, vault: Vault | None = None,
     leaked_values: list[str] = []
     if vault is not None:
         for value in vault.values():
-            if value and value in sanitized_text:
+            # A single character is never a meaningful leak signal (initials,
+            # stray letters) and would fire on ordinary text everywhere.
+            if len(value) >= 2 and _appears_as_token(value, sanitized_text):
                 leaked_values.append(value)
 
     residual: list[Span] = []

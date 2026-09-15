@@ -25,6 +25,19 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 - **Custom policies** via `--policy-file` / `policy_from_dict`.
 - **Benchmark harness** (`censorbot benchmark`) and CI gating on leak rate.
 
+### Evaluation & hardening
+- Added an `evaluation/` subsystem: a synthetic labelled-document generator with
+  a hard-case bank, a ground-truth evaluator (precision / coverage-recall /
+  type-accuracy), a public-source corpus fetcher (gitignored), and a wild runner.
+- Real-document testing (public-domain literature, public-figure Wikipedia)
+  surfaced and fixed: court case-number detection; Unicode/non-Latin uppercase
+  name detection (`str.isupper()` instead of an ASCII class); a colon wrongly
+  treated as a sentence boundary; a resolver bug that split one surname into
+  dozens of entities; leak-scanner substring false positives; single-letter
+  "entities". Added **occurrence propagation** so a surface known sensitive is
+  caught at every whole-word position (fixes sentence-initial leaks).
+- Synthetic eval and the leak benchmark both gate CI.
+
 ### Notes
 - Byte-exact round-trip holds when a token's occurrences share a surface form;
   co-referent mentions with differing surfaces restore to one canonical value.

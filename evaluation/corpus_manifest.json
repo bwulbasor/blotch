@@ -1,0 +1,33 @@
+{
+  "note": "Public-domain and public-record sources only. Content is downloaded on demand into ../corpus (git-ignored) and never committed. Literature is public domain (Project Gutenberg); biographies are public info about public figures (Wikipedia, CC BY-SA).",
+  "sources": [
+    {"id": "pride_and_prejudice", "category": "literature", "kind": "gutenberg",
+     "url": "https://www.gutenberg.org/files/1342/1342-0.txt",
+     "license": "public-domain", "max_chars": 120000},
+    {"id": "sherlock_holmes", "category": "literature", "kind": "gutenberg",
+     "url": "https://www.gutenberg.org/files/1661/1661-0.txt",
+     "license": "public-domain", "max_chars": 120000},
+    {"id": "great_gatsby", "category": "literature", "kind": "gutenberg",
+     "url": "https://www.gutenberg.org/cache/epub/64317/pg64317.txt",
+     "license": "public-domain", "max_chars": 120000},
+    {"id": "dracula", "category": "literature", "kind": "gutenberg",
+     "url": "https://www.gutenberg.org/files/345/345-0.txt",
+     "license": "public-domain", "max_chars": 120000},
+
+    {"id": "alan_turing", "category": "biography", "kind": "wikipedia",
+     "title": "Alan Turing", "license": "CC-BY-SA"},
+    {"id": "ada_lovelace", "category": "biography", "kind": "wikipedia",
+     "title": "Ada Lovelace", "license": "CC-BY-SA"},
+    {"id": "marie_curie", "category": "biography", "kind": "wikipedia",
+     "title": "Marie Curie", "license": "CC-BY-SA"},
+    {"id": "nelson_mandela", "category": "biography", "kind": "wikipedia",
+     "title": "Nelson Mandela", "license": "CC-BY-SA"},
+    {"id": "angela_merkel", "category": "biography", "kind": "wikipedia",
+     "title": "Angela Merkel", "license": "CC-BY-SA"},
+
+    {"id": "gdpr", "category": "legal-reference", "kind": "wikipedia",
+     "title": "General Data Protection Regulation", "license": "CC-BY-SA"},
+    {"id": "hipaa", "category": "legal-reference", "kind": "wikipedia",
+     "title": "Health Insurance Portability and Accountability Act", "license": "CC-BY-SA"}
+  ]
+}

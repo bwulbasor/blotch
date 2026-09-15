@@ -13,28 +13,23 @@ import re
 
 from ..spans import EntityType, Span
 
-_TITLES = r"(?:Mr|Mrs|Ms|Miss|Dr|Prof|Herr|Frau|Sir|Madam|Mx)\.?"
-_ORG_SUFFIX = (
-    r"(?:Inc|LLC|Ltd|GmbH|AG|PLC|Corp|Co|Company|Hospital|Clinic|Klinik|"
-    r"University|Universität|Bank|Group|Holdings|Foundation|Court|Gericht)"
-)
-
-# A run of Capitalised words, optionally preceded by a title. Uses horizontal
-# whitespace ([^\S\n]) between words so a name never spans a line break - that
-# previously merged "...Hospital\n\nMr" into one bogus PERSON.
-_H = r"[^\S\n]"
-_NAME_RUN = re.compile(
-    rf"(?:{_TITLES}{_H}+)?(?:[A-ZÄÖÜ][a-zäöüß'\-]+)(?:{_H}+[A-ZÄÖÜ][a-zäöüß'\-]+){{0,3}}"
-)
-_ORG_RUN = re.compile(
-    rf"(?:[A-ZÄÖÜ][A-Za-zäöüß'\-]+{_H}+)*[A-ZÄÖÜ][A-Za-zäöüß'\-]+{_H}+{_ORG_SUFFIX}\b"
-)
+_TITLE_WORDS = {"mr", "mrs", "ms", "miss", "dr", "prof", "herr", "frau", "sir",
+                "madam", "mx", "st"}
+_ORG_SUFFIX_WORDS = {
+    "inc", "llc", "ltd", "gmbh", "ag", "plc", "corp", "co", "company", "hospital",
+    "clinic", "klinik", "university", "universität", "bank", "group", "holdings",
+    "foundation", "court", "gericht", "sons", "partners", "associates",
+}
+# A single letter-led "word" (Unicode-aware: any letter start, then letters /
+# apostrophe / hyphen). Uppercase is judged with str.isupper(), which is correct
+# for accented and non-Latin letters that an ASCII char class ([A-Z]) misses.
+_WORD = re.compile(r"[^\W\d_][^\W\d_'’\-]*", re.UNICODE)
 
 # Sentence-leading capitalised words that are usually not names.
 _STOPWORDS = {
     "The", "A", "An", "This", "That", "These", "Those", "His", "Her", "Their",
     "It", "He", "She", "They", "We", "You", "I", "On", "In", "At", "For", "And",
-    "But", "Or", "If", "When", "According", "Patient", "Mr", "Mrs", "Ms", "Dr",
+    "But", "Or", "If", "When", "According", "Patient",
 }
 
 
@@ -69,30 +64,71 @@ def _spacy_detect(text: str):  # pragma: no cover - exercised only when spaCy pr
 
 
 def _is_sentence_initial(text: str, start: int) -> bool:
-    """True if the match at ``start`` begins a sentence (or the text)."""
+    """True if the match at ``start`` begins a sentence (or the text).
+
+    Only real sentence terminators and line breaks count - notably NOT ':' or
+    ';', because names very often follow a label colon ("Emergency contact: ...").
+    """
 
     i = start - 1
     while i >= 0 and text[i] in " \t":
         i -= 1
-    return i < 0 or text[i] in ".!?…\n\r;:"
+    return i < 0 or text[i] in ".!?…\n\r"
+
+
+def _is_title(word: str) -> bool:
+    return word.lower().rstrip(".") in _TITLE_WORDS
 
 
 def _heuristic_detect(text: str) -> list[Span]:
+    """Group consecutive capitalised words into PERSON / ORGANIZATION runs.
+
+    Uppercase is tested with ``str.isupper()`` so accented and non-Latin names
+    ("Škoda", "Łukasz", "Øthen") are caught. Words are joined only across plain
+    horizontal whitespace - a run never crosses a line break or punctuation -
+    except that a title may be followed by "." (e.g. "Dr. Keller").
+    """
+
+    words = list(_WORD.finditer(text))
     spans: list[Span] = []
-    for m in _ORG_RUN.finditer(text):
-        spans.append(Span(m.start(), m.end(), EntityType.ORGANIZATION, m.group(0), 0.55, "ner_heur"))
-    for m in _NAME_RUN.finditer(text):
-        value = m.group(0)
-        words = value.split()
-        titled = bool(re.match(_TITLES, value))
-        first = words[0].rstrip(".")
-        # A lone capitalised word is only weak evidence of a name. Drop it when it
-        # is a known stopword, or when it merely opens a sentence ("Later, ..."),
-        # unless it carries a title. Multi-word runs are always kept (high recall).
-        if not titled and len(words) == 1:
-            if first in _STOPWORDS or _is_sentence_initial(text, m.start()):
-                continue
-        spans.append(Span(m.start(), m.end(), EntityType.PERSON, value, 0.5, "ner_heur"))
+    i, n = 0, len(words)
+    while i < n:
+        w = words[i]
+        if not (w.group(0)[:1].isupper() or _is_title(w.group(0))):
+            i += 1
+            continue
+        run = [w]
+        j = i + 1
+        while j < n and len(run) < 5:
+            prev, cur = run[-1], words[j]
+            gap = text[prev.end():cur.start()]
+            prev_is_title = _is_title(prev.group(0))
+            gap_ok = (all(c in " \t" for c in gap) and gap != "") or (
+                prev_is_title and re.fullmatch(r"\.?[ \t]+", gap) is not None)
+            if gap_ok and cur.group(0)[:1].isupper():
+                run.append(cur)
+                j += 1
+            else:
+                break
+        start, end = run[0].start(), run[-1].end()
+        value = text[start:end]
+        lowered = {r.group(0).lower().rstrip(".") for r in run}
+        titled = _is_title(run[0].group(0))
+        if lowered & _ORG_SUFFIX_WORDS:
+            spans.append(Span(start, end, EntityType.ORGANIZATION, value, 0.55, "ner_heur"))
+        else:
+            content = [r for r in run if not _is_title(r.group(0))]
+            if not titled and len(content) == 1:
+                first = content[0].group(0)
+                # A lone single letter is an initial, not a name; a stopword or a
+                # sentence-opening lone word is too weak to treat as a person.
+                if (len(first) < 2 or first in _STOPWORDS
+                        or _is_sentence_initial(text, content[0].start())):
+                    i = j
+                    continue
+            if content:  # a bare title alone is not a person
+                spans.append(Span(start, end, EntityType.PERSON, value, 0.5, "ner_heur"))
+        i = j
     return spans
 
 

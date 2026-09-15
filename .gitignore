@@ -18,6 +18,10 @@ venv/
 *.vault
 vault.json
 
+# fetched evaluation corpus — third-party content, downloaded on demand,
+# never committed (copyright + privacy). Regenerate with evaluation/fetch_corpus.py
+/corpus/
+
 # editors / OS
 .vscode/
 .idea/

@@ -8,6 +8,7 @@ Only the pseudonymised text should ever leave the device; the vault stays local.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from .detectors import detect_all
@@ -18,6 +19,13 @@ from .spans import Span, resolve_overlaps
 from .vault import Vault
 
 _REDACTED = "[REDACTED]"
+
+
+def _word_bounded(surface: str) -> str:
+    """Regex matching ``surface`` as a whole token (word boundaries on word-char edges)."""
+    left = r"(?<!\w)" if surface[:1].isalnum() or surface[:1] == "_" else ""
+    right = r"(?!\w)" if surface[-1:].isalnum() or surface[-1:] == "_" else ""
+    return left + re.escape(surface) + right
 
 
 @dataclass
@@ -46,6 +54,8 @@ def sanitize(text: str, policy: Policy, *, use_ner: bool = True,
     # Decide a replacement per member span, honouring the policy per type.
     edits: list[tuple[int, int, str]] = []  # (start, end, replacement)
     kept_entities: list[Entity] = []
+    covered = bytearray(len(text))  # 1 where a char is already claimed by an edit
+    surface_token: dict[str, str | None] = {}  # surface -> token, None if ambiguous
     n_tok = n_red = 0
     for entity in entities:
         action = policy.action_for(entity.entity_type)
@@ -53,17 +63,47 @@ def sanitize(text: str, policy: Policy, *, use_ner: bool = True,
             continue
         kept_entities.append(entity)
         if action == Action.TOKENIZE:
-            token = vault.add_entity(entity, action.value)
-            replacement = token
+            replacement = vault.add_entity(entity, action.value)
             n_tok += 1
         else:  # REDACT
             replacement = _REDACTED
             n_red += 1
         for span in entity.members:
             edits.append((span.start, span.end, replacement))
+            for k in range(span.start, span.end):
+                covered[k] = 1
+        # Record each surface for propagation (tokenised entities only).
+        if action == Action.TOKENIZE:
+            for surface in {m.value for m in entity.members} | {entity.canonical}:
+                if len(surface) < 2:
+                    continue
+                if surface in surface_token and surface_token[surface] != replacement:
+                    surface_token[surface] = None  # shared by 2 entities -> ambiguous
+                elif surface not in surface_token:
+                    surface_token[surface] = replacement
+
+    # Occurrence propagation (plan §2): once a surface is known sensitive, catch
+    # *every* whole-word occurrence, including ones the detectors skipped (e.g. a
+    # sentence-initial "Curie" that the single-word heuristic dropped). This keeps
+    # tokenisation consistent so the leak scanner stays clean. Only surfaces owned
+    # unambiguously by one entity propagate, to avoid merging distinct people.
+    # One combined regex, longest surface first, so the pass is a single scan.
+    surfaces = sorted((s for s, t in surface_token.items() if t), key=len,
+                      reverse=True)
+    if surfaces:
+        combined = re.compile(r"(?<!\w)(?:" + "|".join(re.escape(s) for s in surfaces)
+                              + r")(?!\w)")
+        for m in combined.finditer(text):
+            s, e = m.start(), m.end()
+            token = surface_token.get(m.group(0))
+            if token is None or covered[s] or covered[e - 1]:
+                continue
+            edits.append((s, e, token))
+            for k in range(s, e):
+                covered[k] = 1
 
     # Apply edits right-to-left so earlier offsets stay valid.
-    edits.sort(key=lambda e: e[0], reverse=True)
+    edits.sort(key=lambda ed: ed[0], reverse=True)
     out = text
     for start, end, replacement in edits:
         out = out[:start] + replacement + out[end:]
