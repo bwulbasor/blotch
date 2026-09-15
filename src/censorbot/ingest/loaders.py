@@ -15,14 +15,19 @@ from __future__ import annotations
 
 import os
 
-SUPPORTED = (".txt", ".md", ".text", ".pdf", ".docx")
+SUPPORTED = (".txt", ".md", ".text", ".csv", ".tsv", ".log", ".json", ".pdf", ".docx")
+_PLAIN = (".txt", ".md", ".text", ".csv", ".tsv", ".log", ".json")
 
 
 def load_text(path: str) -> str:
-    """Extract plain text from a supported document."""
+    """Extract plain text from a supported document.
+
+    Tabular (.csv/.tsv) and log/JSON files are read as plain text: tokenisation
+    replaces values in place, so the delimiters and structure are preserved.
+    """
 
     ext = os.path.splitext(path)[1].lower()
-    if ext in (".txt", ".md", ".text"):
+    if ext in _PLAIN:
         with open(path, encoding="utf-8", errors="replace") as fh:
             return fh.read()
     if ext == ".pdf":

@@ -38,7 +38,7 @@ def write_document(path: str, sanitized_text: str, *, vault: Vault | None = None
     """
 
     ext = os.path.splitext(path)[1].lower()
-    if ext in ("", ".txt", ".md", ".text"):
+    if ext in ("", ".txt", ".md", ".text", ".csv", ".tsv", ".log", ".json"):
         _write_txt(path, sanitized_text)
     elif ext == ".docx":
         _write_docx(path, sanitized_text)

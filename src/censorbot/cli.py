@@ -30,7 +30,8 @@ def _policy(args):
 
 
 def _read(path: str) -> str:
-    if os.path.splitext(path)[1].lower() in (".txt", ".md", ".text", ".pdf", ".docx"):
+    from .ingest import SUPPORTED
+    if os.path.splitext(path)[1].lower() in SUPPORTED:
         return load_text(path)
     with open(path, encoding="utf-8", errors="replace") as fh:
         return fh.read()

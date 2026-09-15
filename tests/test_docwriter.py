@@ -46,6 +46,20 @@ def test_pdf_regeneration(tmp_path):
     assert "48392017" not in back
 
 
+def test_csv_structure_preserved(tmp_path):
+    csv = "name,email,city\nAlejandro Martinez,a.m@example.com,Vienna\n"
+    src = tmp_path / "d.csv"
+    src.write_text(csv, encoding="utf-8")
+    from censorbot.ingest import load_text
+    r = sanitize(load_text(str(src)), get_policy("maximum"), use_spacy=False)
+    out = tmp_path / "d_safe.csv"
+    write_document(str(out), r.sanitized_text, vault=r.vault, verify=True)
+    lines = out.read_text(encoding="utf-8").splitlines()
+    assert lines[0] == "name,email,city"          # header untouched
+    assert lines[1].count(",") == 2               # structure preserved
+    assert "Alejandro Martinez" not in lines[1]
+
+
 def test_unsupported_extension(tmp_path):
     result = _san()
     with pytest.raises(ValueError):
