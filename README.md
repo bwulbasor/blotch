@@ -264,9 +264,24 @@ The headline metric is **DIRECT recall** (a missed direct identifier is a leak):
 | test | **100%** (374/374) | 100% | 100% | 82% |
 | dev  | **100%** (391/391) | 100% | 100% | 84% |
 
-Getting here was the point of the exercise: the first run scored only **62%**
-DIRECT recall — all case/application numbers (`36110/97`) were missed — which the
-synthetic set had hidden. Quasi-identifiers (bare years, durations, demographics,
+A second benchmark, [AI4Privacy pii-masking](https://huggingface.co/datasets/ai4privacy/pii-masking-200k),
+covers the contact/financial PII that legal text lacks. On 2,000 English rows,
+recall on the types censorbot targets is **89.7% (heuristic) / 92.1% (spaCy
+union)**; the deterministic detectors are near-perfect — EMAIL, PHONE, IPv4/IPv6,
+URL, IBAN, MAC, Ethereum all ~100%:
+
+| Detector | recall | | Detector | recall |
+|---|---|---|---|---|
+| EMAIL | 100% | | CREDIT_CARD | 100% |
+| PHONE | 100% | | IBAN | 100% |
+| IPv4 / IPv6 | 100% | | Ethereum / MAC | 100% |
+| SSN | 97% | | Bitcoin | 97% |
+| FIRSTNAME | 84% → **92%** (spaCy) | | LASTNAME | 94% → **100%** |
+
+Getting here was the point of the exercise: the first TAB run scored only **62%**
+DIRECT recall — all case/application numbers (`36110/97`) were missed — and
+AI4Privacy exposed that Luhn-gated card detection missed 84% of card-shaped
+numbers. Both are fixed. Quasi-identifiers (bare years, durations, demographics,
 quantities) are partially caught by design; exhaustively redacting them destroys
 utility, so they are surfaced by the re-id-risk advisory instead. Reproduce:
 
