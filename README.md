@@ -288,6 +288,13 @@ The remaining gap is context-free bare numbers (a lone building number or ZIP,
 `MM/YY` dates) — catching those means redacting every short number, so they're
 left out by design (the street/city/state around them are already caught).
 
+**Over-redaction / precision** was worked the same data-driven way. The
+capitalisation heuristic flagged common capitalised words as names
+(`Convention`, `Your`, `Could`, `IP`, `Bitcoin`). Analysing exactly what each
+benchmark flagged that its human/gold labels did not, and adding those
+non-name words, raised precision **65% → 94% on TAB** and **72% → 84% on
+AI4Privacy — with no loss of recall** (DIRECT still 100%, names still 99%).
+
 Getting here was the point of the exercise: the first TAB run scored only **62%**
 DIRECT recall — all case/application numbers (`36110/97`) were missed — and
 AI4Privacy exposed that Luhn-gated card detection missed 84% of card-shaped

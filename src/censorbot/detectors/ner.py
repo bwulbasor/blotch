@@ -72,6 +72,10 @@ _SENTENCE_OPENERS = {w.lower() for w in _STOPWORDS} | {
     "enter", "click", "call", "contact", "reach", "confirm", "verify", "update",
     "review", "submit", "complete", "ensure", "what", "which", "who", "whom",
     "whose", "where", "why", "how", "want", "please", "kindly", "ensure",
+    "all", "any", "looking", "remember", "join", "access", "greetings",
+    "welcome", "hey", "connect", "received", "best", "reminder", "payment",
+    "team", "education", "warm", "cheers", "attached", "let's", "we've",
+    "you'll", "we'll", "here's", "there's", "it's", "that's", "thank",
 }
 
 # Words that are never a person's name: function words and document-structure
