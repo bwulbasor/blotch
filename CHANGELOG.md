@@ -25,6 +25,19 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 - **Custom policies** via `--policy-file` / `policy_from_dict`.
 - **Benchmark harness** (`censorbot benchmark`) and CI gating on leak rate.
 
+### spaCy NER + a guaranteed no-leak sweep
+- spaCy NER is now **unioned** with the heuristic (not substituted): the
+  heuristic stays a recall safety net for common-word / non-Latin names spaCy
+  misses, while spaCy adds correctly-typed ORG/LOCATION and natural-context names
+  (~760 extra real-name catches on the eval corpus). CI runs a spaCy job.
+- Fixed a latent **non-deterministic leak**: hash-randomised set iteration made
+  propagation order vary, so a shared surface (e.g. a surname spaCy types as ORG
+  in one place and PERSON in another) could leak at a sentence start in some runs.
+  Sanitisation is now deterministic, and a **guaranteed final sweep** removes any
+  residual whole-word vault value — "no known value leaks" is now a guarantee,
+  not best-effort. Verified leak-clean across hash seeds and the whole corpus
+  under both the heuristic and the spaCy union.
+
 ### Evaluation & hardening
 - Added an `evaluation/` subsystem: a synthetic labelled-document generator with
   a hard-case bank, a ground-truth evaluator (precision / coverage-recall /

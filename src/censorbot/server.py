@@ -87,6 +87,8 @@ class _Handler(BaseHTTPRequestHandler):
                 self._send(200, _sanitize(data))
             elif self.path == "/restore":
                 self._send(200, _restore(data))
+            elif self.path == "/review":
+                self._send(200, _review(data))
             else:
                 self._send(404, {"error": "not found"})
         except KeyError as exc:

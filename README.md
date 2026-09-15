@@ -85,7 +85,7 @@ Plain ASCII `[[TYPE_NNN]]` (e.g. `[[PERSON_001]]`, `[[PATIENT_ID_017]]`):
 ```bash
 pip install -e .                 # core (pure stdlib, zero required deps)
 pip install -e '.[crypto]'       # encrypted vault at rest (AES-256-GCM)
-pip install -e '.[ner]'          # spaCy NER (better PERSON/ORG/LOC recall)
+pip install -e '.[ner]' && python -m spacy download en_core_web_sm   # spaCy NER
 pip install -e '.[docs]'         # PDF + DOCX ingestion and regenerated output
 pip install -e '.[all,dev]'      # everything + pytest
 ```
@@ -258,6 +258,19 @@ python -m evaluation.evaluate      # synthetic docs WITH ground truth → precis
 python -m evaluation.fetch_corpus  # download public-domain / public-record docs
 python -m evaluation.run_wild      # run over real docs: throughput, crashes, leak-scan
 ```
+
+### spaCy NER (optional, recommended for natural-language documents)
+
+Install the `ner` extra + the `en_core_web_sm` model, then pass `use_spacy=True`
+(the CLI does by default; `--no-spacy` forces the heuristic). spaCy is **unioned
+with** the built-in heuristic, never substituted for it: on its own spaCy misses
+the cases most dangerous for a privacy tool — common-word names ("May",
+"Summer") and non-Latin names ("Łukasz Škoda") — so the heuristic stays as a
+recall safety net while spaCy adds correctly-typed ORG/LOCATION and names caught
+in natural context (on the eval corpus it adds ~760 real-name catches the
+heuristic missed). Trade-off: spaCy runs ~15× slower (~20K vs ~300K chars/sec).
+Requires Python ≤ 3.13 today (no 3.14 wheels yet); the engine falls back to the
+heuristic automatically when spaCy is absent.
 
 * **Synthetic set** (`synth.py`) generates labelled documents with a hard-case
   bank — names that are common words, Unicode/apostrophe/hyphen names,

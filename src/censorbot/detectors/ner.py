@@ -195,10 +195,21 @@ def _heuristic_detect(text: str) -> list[Span]:
 
 
 def detect(text: str, use_spacy: bool = True) -> list[Span]:
-    """Detect contextual entities. Falls back to heuristics if spaCy is absent."""
+    """Detect contextual entities.
 
+    When spaCy is available it is *unioned* with the heuristic, not substituted
+    for it. spaCy alone misses the cases most dangerous for a privacy tool -
+    common-word names ("May", "Summer") and non-Latin names ("Łukasz Škoda") -
+    so replacing the heuristic would drop recall and leak those. The union keeps
+    the heuristic as a recall safety net (its spans are never lost) while spaCy
+    adds correctly-typed ORG/LOCATION and names caught in natural context; where
+    both cover the same text, spaCy's higher confidence wins overlap resolution,
+    so its better typing prevails.
+    """
+
+    heuristic = _heuristic_detect(text)
     if use_spacy:
         spacy_spans = _spacy_detect(text)
         if spacy_spans is not None:
-            return spacy_spans
-    return _heuristic_detect(text)
+            return spacy_spans + heuristic
+    return heuristic

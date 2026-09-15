@@ -29,6 +29,21 @@ def _word_bounded(surface: str) -> str:
     return left + re.escape(surface) + right
 
 
+def _sweep_values(out: str, value_token: dict[str, str]) -> str:
+    """Replace any residual whole-word vault value in ``out`` with its token.
+
+    Deterministic (values ordered longest-first, then lexicographically) and
+    chunked. A value can't match inside an existing ``[[TYPE_NNN]]`` token because
+    a token's type is followed by ``_`` (a word char), so the boundary fails.
+    """
+    values = sorted((v for v in value_token if len(v) >= 2), key=lambda s: (-len(s), s))
+    for start in range(0, len(values), _PROPAGATE_CHUNK):
+        chunk = values[start:start + _PROPAGATE_CHUNK]
+        pat = re.compile(r"(?<!\w)(?:" + "|".join(re.escape(v) for v in chunk) + r")(?!\w)")
+        out = pat.sub(lambda m: value_token.get(m.group(0), m.group(0)), out)
+    return out
+
+
 @dataclass
 class SanitizeResult:
     sanitized_text: str
@@ -86,13 +101,17 @@ def sanitize(text: str, policy: Policy, *, use_ner: bool = True,
             covered[span.start:span.end] = b"\x01" * (span.end - span.start)
         # Record each surface for propagation (both TOKENIZE and REDACT, so a
         # redacted value is removed at every occurrence, not just detected ones).
-        for surface in {m.value for m in entity.members} | {entity.canonical}:
-            if len(surface) < 2:
-                continue
-            if surface in surface_token and surface_token[surface] != replacement:
-                surface_token[surface] = None  # shared by 2 entities -> ambiguous
-            elif surface not in surface_token:
-                surface_token[surface] = replacement
+        # First writer wins on a conflict (the earliest-appearing entity, since
+        # entities are ordered by first offset): a surface owned by two entities
+        # - e.g. spaCy typing "Babbage" as ORG here and LOCATION there, or a
+        # surname shared by two people - still propagates to ONE token rather than
+        # being dropped. Hiding every occurrence matters more than perfect typing;
+        # a not-propagated surface would leak at positions no detector covered.
+        # sorted() makes the first-writer-wins choice deterministic (set iteration
+        # order is hash-randomized, which must never affect what gets hidden).
+        for surface in sorted({m.value for m in entity.members} | {entity.canonical}):
+            if len(surface) >= 2:
+                surface_token.setdefault(surface, replacement)
 
     # Occurrence propagation (plan §2): once a surface is known sensitive, catch
     # *every* whole-word occurrence, including ones the detectors skipped (e.g. a
@@ -100,8 +119,10 @@ def sanitize(text: str, policy: Policy, *, use_ner: bool = True,
     # tokenisation consistent so the leak scanner stays clean. Only surfaces owned
     # unambiguously by one entity propagate, to avoid merging distinct people.
     # One combined regex, longest surface first, so the pass is a single scan.
-    surfaces = sorted((s for s, t in surface_token.items() if t), key=len,
-                      reverse=True)
+    # Total, deterministic order (length desc, then the string) so same-length
+    # surfaces never swap between chunks run-to-run.
+    surfaces = sorted((s for s, t in surface_token.items() if t),
+                      key=lambda s: (-len(s), s))
     # Chunk the alternation so a document with thousands of distinct surfaces
     # never builds one pathologically large pattern. Longest-first ordering is
     # preserved within each chunk; cross-chunk overlaps are handled by the
@@ -131,6 +152,18 @@ def sanitize(text: str, policy: Policy, *, use_ner: bool = True,
         pos = end
     parts.append(text[pos:])
     out = "".join(parts)
+
+    # Guaranteed final sweep: whatever the propagation edge cases, no tokenised
+    # value may survive whole-word in the output. Replace any residual occurrence
+    # of a vault value with its token. This is the deterministic backstop that
+    # makes "no known value leaks" a guarantee, not a best-effort.
+    if vault.tokens():
+        value_token: dict[str, str] = {}
+        for tok in vault.tokens():
+            v = vault.value_for(tok)
+            if v and len(v) >= 2:
+                value_token.setdefault(v, tok)
+        out = _sweep_values(out, value_token)
 
     result = SanitizeResult(
         sanitized_text=out,

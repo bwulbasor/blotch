@@ -59,6 +59,20 @@ def test_large_repeated_document_round_trips():
     assert restore(result.sanitized_text, result.vault).text == doc
 
 
+def test_no_vault_value_survives_in_output():
+    # the guaranteed final sweep: no tokenised value may remain whole-word in the
+    # output, even with many shared surnames (an entity-typing conflict source).
+    text = ("Frank Baker met May Rich and Rich Frank. Baker called. Rich replied. "
+            "Frank Cook owes Frank Baker money. May saw Rich. " * 20)
+    r = sanitize(text, get_policy("maximum"), use_spacy=False)
+    assert r.leak_report.clean, r.leak_report.summary()
+    import re as _re
+    for v in set(r.vault.values()):
+        if len(v) >= 2:
+            assert not _re.search(r"(?<!\w)" + _re.escape(v) + r"(?!\w)",
+                                  r.sanitized_text), f"leaked {v!r}"
+
+
 def test_empty_and_no_entity_text():
     r = sanitize("", get_policy("maximum"), use_spacy=False)
     assert r.sanitized_text == "" and r.leak_report.clean
