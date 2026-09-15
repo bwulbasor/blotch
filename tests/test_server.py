@@ -59,6 +59,13 @@ def test_sanitize_then_restore_over_http(base_url):
     assert res["anomalies"] is False
 
 
+def test_review_over_http(base_url):
+    out = _post(base_url + "/review",
+                {"text": "Contact John Smith at j@x.com.", "policy": "personal",
+                 "use_spacy": False})
+    assert "buildOutput" in out["html"] and "const ORIGINAL" in out["html"]
+
+
 def test_inspect_over_http(base_url):
     out = _post(base_url + "/inspect",
                 {"text": "email a.b@example.com", "policy": "personal", "use_spacy": False})

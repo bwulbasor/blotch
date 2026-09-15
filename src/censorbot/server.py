@@ -134,6 +134,14 @@ def _sanitize(data: dict) -> dict:
     }
 
 
+def _review(data: dict) -> dict:
+    from .review import render_review_html
+    text = data["text"]
+    policy = get_policy(data.get("policy", "personal"))
+    use_spacy = data.get("use_spacy", True)
+    return {"html": render_review_html(text, policy, use_spacy=use_spacy)}
+
+
 def _restore(data: dict) -> dict:
     text = data["text"]
     vault = Vault.from_dict(data["vault"])
@@ -174,10 +182,12 @@ sanitized version is shown for you to copy. Nothing is sent anywhere.</p>
 <div class="row">
  <label>Policy <select id="policy"></select></label>
  <button class="primary" id="san">Sanitize</button>
+ <button id="review">Review &amp; tag</button>
  <button id="insp">Inspect</button>
  <span id="status"></span>
 </div>
 <div id="out"></div>
+<iframe id="rvframe" allow="clipboard-write" style="display:none;width:100%;height:70vh;border:1px solid #0002;border-radius:8px;margin-top:10px"></iframe>
 <div id="rt" hidden>
  <h3>2 · Paste the external service's reply to rehydrate it locally</h3>
  <textarea id="reply" placeholder="Paste the model/service reply containing the [[TOKENS]]..."></textarea>
@@ -210,6 +220,12 @@ sanitized version is shown for you to copy. Nothing is sent anywhere.</p>
    const d=await post('/restore',{text:$('#reply').value,vault:VAULT});
    $('#rstatus').innerHTML=d.anomalies?'<span class="bad">token anomalies: invented '+JSON.stringify(d.invented)+'</span>':'<span class="ok">restored '+d.restored_tokens.length+' token(s)</span>';
    $('#rout').innerHTML='<h3>Rehydrated result</h3><pre>'+esc(d.restored)+'</pre>';
+ };
+ $('#review').onclick=async()=>{
+   $('#status').textContent='working...';
+   const d=await post('/review',{text:$('#in').value,policy:$('#policy').value,use_spacy:false});
+   const f=$('#rvframe'); f.srcdoc=d.html; f.style.display='block'; $('#out').innerHTML=''; $('#rt').hidden=true;
+   $('#status').textContent='review below: click to keep, select text to tag';
  };
  $('#insp').onclick=async()=>{
    $('#status').textContent='working...';
