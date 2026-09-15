@@ -26,11 +26,12 @@ _IPV4 = re.compile(
     r"\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b"
 )
 _IPV6 = re.compile(r"\b(?:[0-9A-Fa-f]{1,4}:){2,7}[0-9A-Fa-f]{1,4}\b")
-# Loose international phone: optional +, groups of digits with separators.
-_PHONE = re.compile(
-    r"(?<![\w.])(?:\+?\d{1,3}[\s.\-]?)?(?:\(\d{1,4}\)[\s.\-]?)?"
-    r"\d{2,4}(?:[\s.\-]\d{2,4}){1,4}(?![\w])"
-)
+# High-recall phone run: a digit-led token of digits / spaces / + ( ) . - that
+# begins and ends on a digit. The 7-15 digit count is enforced in code so we
+# catch both grouped ("+43 660 1234567") and contiguous ("06601234567") forms.
+# Precision is recovered later: dates, IBANs and cards have their own (higher
+# confidence, usually longer) spans and win overlap resolution.
+_PHONE = re.compile(r"(?<![\w.])\+?\d[\d\s().\-]{5,17}\d(?![\w])")
 _IBAN = re.compile(r"\b[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]{1,4}){2,8}\b")
 _CARD = re.compile(r"\b(?:\d[ \-]?){13,19}\b")
 _US_SSN = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")

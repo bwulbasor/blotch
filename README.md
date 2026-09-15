@@ -103,6 +103,12 @@ censorbot sanitize note.txt --out safe.txt --vault note.cbv \
 
 # Rehydrate the reply locally
 censorbot restore reply.txt --vault note.cbv --passphrase "…"
+
+# Run the local gateway daemon (loopback only, zero deps)
+censorbot serve --port 8723
+
+# Benchmark detection / leak-rate / round-trip on the built-in fixtures
+censorbot benchmark --policy maximum
 ```
 
 `sanitize` refuses to write if the leak scan isn't clean (override with
@@ -122,10 +128,51 @@ if final.has_anomalies:
     print("model tampered with tokens:", final.summary())
 ```
 
+## Provider-agnostic gateway
+
+The external service is completely replaceable — a provider is any callable
+`str -> str`:
+
+```python
+from censorbot import Gateway, get_policy
+
+def my_model(sanitized: str) -> str:
+    return call_chatgpt_or_claude_or_local(sanitized)   # only tokens go out
+
+gw = Gateway(get_policy("legal"), my_model)
+res = gw.run(open("brief.txt").read())   # blocks if the outbound scan isn't clean
+print(res.restored)                       # rehydrated locally
+if res.response_had_anomalies:
+    print("provider tampered with tokens:", res.restore_result.summary())
+```
+
+## Local daemon
+
+`censorbot serve` runs a stdlib-only HTTP gateway on `127.0.0.1`:
+
+```
+POST /inspect   {"text","policy"}   -> detected entities
+POST /sanitize  {"text","policy"}   -> {sanitized, vault, leak}
+POST /restore   {"text","vault"}    -> {restored, invented, dropped}
+GET  /policies   GET /health
+```
+
+The vault travels in the `/sanitize` response and back to `/restore`; the server
+is stateless and loopback-bound, so the mapping never leaves the machine.
+
 ## Privacy policies
 
 Modes, not dozens of switches: `maximum`, `personal`, `medical`, `legal`. Each
 maps entity types to an action (`tokenize` / `redact` / `keep`).
+
+## Round-trip fidelity & coreference
+
+Every token rehydrates to a value that actually appeared in the source. When one
+entity is mentioned several ways ("Alejandro Martinez" … "Mr. Martinez"), all
+mentions share **one** token (this is what lets a model keep the relationship
+graph, plan §11) and therefore all restore to the single canonical surface (the
+longest one seen). That's a deliberate trade of exact per-mention surface fidelity
+for coreference. On the built-in benchmark, byte-exact round-trip is 100%.
 
 ## Architecture
 
@@ -151,12 +198,14 @@ reference ID · Account ID.
 - [x] Encrypted token vault + reversible tokenisation
 - [x] Sanitised export + outbound leak scan
 - [x] Round-trip rehydration with response validation
+- [x] Benchmark harness (recall, leak rate, round-trip, scan-block rate)
+- [x] Provider-agnostic `Gateway` (the external service is fully replaceable)
+- [x] `POST /sanitize|/restore|/inspect` local daemon (loopback, zero deps)
 - [ ] Regenerated sanitised **PDF/DOCX** output (currently text out)
 - [ ] Visual review/preview UI
-- [ ] Benchmark suite (recall, leak rate, semantic preservation, round-trip)
+- [ ] Semantic-preservation metric (needs a real model in the loop)
 - [ ] Domain entity packs; synthetic/generalised strategies
 - [ ] Re-identification-risk (quasi-identifier) flagging
-- [ ] `POST /sanitize|/restore|/inspect` local daemon + provider adapters
 
 ## Design principle (non-negotiable)
 

@@ -105,7 +105,16 @@ def resolve(spans: list[Span]) -> list[Entity]:
 
     entities.extend(full)
 
-    # 3. assign per-type sequential indices by first appearance.
+    # 3. canonical = the longest *verbatim* surface among the members. Restore
+    #    reproduces exactly what a token replaced, so the value must be text that
+    #    actually appeared (title-stripping was only for *matching*, not storage).
+    #    Note: co-referent mentions with different surfaces ("Alejandro Martinez"
+    #    vs "Mr. Martinez") share one token and all restore to this canonical -
+    #    a deliberate coreference/fidelity trade-off (see README).
+    for ent in entities:
+        ent.canonical = max((s.value for s in ent.members), key=len)
+
+    # 4. assign per-type sequential indices by first appearance.
     entities.sort(key=lambda e: e.first_offset)
     counters: dict[EntityType, int] = {}
     for ent in entities:

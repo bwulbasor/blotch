@@ -73,6 +73,22 @@ def _cmd_sanitize(args) -> int:
     return 0
 
 
+def _cmd_serve(args) -> int:
+    from .server import serve
+    serve(host=args.host, port=args.port)
+    return 0
+
+
+def _cmd_benchmark(args) -> int:
+    from .benchmark import run_benchmark
+    policy = get_policy(args.policy)
+    result = run_benchmark(policy, use_spacy=not args.no_spacy)
+    print(f"Policy: {policy.name}")
+    print(result.report())
+    # non-zero exit if anything leaked - useful in CI
+    return 1 if result.leaked else 0
+
+
 def _cmd_restore(args) -> int:
     text = _read(args.file)
     vault = Vault.load(args.vault, passphrase=args.passphrase)
@@ -123,6 +139,15 @@ def build_parser() -> argparse.ArgumentParser:
     res.add_argument("--passphrase", help="passphrase if the vault is encrypted")
     res.add_argument("--out", help="write to a file instead of stdout")
     res.set_defaults(func=_cmd_restore)
+
+    srv = sub.add_parser("serve", help="run the local gateway HTTP daemon")
+    srv.add_argument("--host", default="127.0.0.1", help="bind address (loopback only)")
+    srv.add_argument("--port", type=int, default=8723)
+    srv.set_defaults(func=_cmd_serve)
+
+    bench = sub.add_parser("benchmark", parents=[common],
+                           help="run the built-in detection/round-trip benchmark")
+    bench.set_defaults(func=_cmd_benchmark)
     return p
 
 

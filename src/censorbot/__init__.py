@@ -15,6 +15,7 @@ Typical use::
 
 from __future__ import annotations
 
+from .gateway import Gateway, GatewayResult, LeakBlocked, echo_provider
 from .leakscan import LeakReport, scan
 from .pipeline import SanitizeResult, preview, sanitize
 from .policy import Action, Policy, get_policy
@@ -27,5 +28,6 @@ __version__ = "0.1.0"
 __all__ = [
     "sanitize", "restore", "preview", "scan", "validate_response",
     "get_policy", "Policy", "Action", "Vault", "EntityType", "Span",
-    "SanitizeResult", "RestoreResult", "LeakReport", "__version__",
+    "SanitizeResult", "RestoreResult", "LeakReport",
+    "Gateway", "GatewayResult", "LeakBlocked", "echo_provider", "__version__",
 ]
