@@ -135,6 +135,20 @@ _NON_NAME = {w.lower() for w in _STOPWORDS} | {
     "january", "february", "march", "april", "june", "july", "august",
     "september", "october", "november", "december", "monday", "tuesday",
     "wednesday", "thursday", "friday", "saturday", "sunday",
+    # technical / document vocabulary (specs, RFCs, APIs) - never names. Common
+    # surnames (field, page, rich, baker, ...) are deliberately excluded.
+    "standards", "track", "content", "request", "internet", "encoding", "range",
+    "syntax", "accept", "cache", "length", "location", "transfer", "status",
+    "line", "type", "control", "warning", "service", "domain", "modified",
+    "continue", "header", "headers", "message", "messages", "response", "method",
+    "methods", "protocol", "protocols", "network", "parameter", "parameters",
+    "version", "format", "connection", "client", "port", "gateway", "proxy",
+    "resource", "media", "scheme", "query", "cookie", "session", "token",
+    "registry", "specification", "entity", "example", "error", "abstract",
+    "category", "obsoletes", "updates", "ipv", "smtp", "http", "https", "ftp",
+    "tcp", "udp", "dns", "uri", "api", "sdk", "html", "xml", "json", "css",
+    "uuid", "ascii", "utf", "mime", "imap", "ssl", "tls", "ssh", "vpn", "see",
+    "last",
     # ORG-suffix words also drop when standing alone (a lone "Court"/"Bank" is
     # not an org and not a name)
     "hospital", "clinic", "university", "bank", "group", "foundation", "company",
