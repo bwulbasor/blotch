@@ -94,12 +94,26 @@ def resolve(spans: list[Span]) -> list[Entity]:
         else:
             partials.append(span)
 
+    # Index full-name entities by each of their name parts once, so matching a
+    # partial is O(parts) instead of O(full) - this was the dominant cost on
+    # large documents (millions of _name_parts calls).
+    part_index: dict[str, list[Entity]] = {}
+    for ent in full:
+        for part in set(_name_parts(ent.canonical)):
+            part_index.setdefault(part, []).append(ent)
+
     unmatched_by_norm: dict[str, Entity] = {}
     for span in partials:
-        parts = set(_name_parts(span.value))
-        matches = [e for e in full if parts & set(_name_parts(e.canonical))]
-        if len(matches) == 1:
-            matches[0].members.append(span)
+        parts = _name_parts(span.value)
+        cand: list[Entity] = []
+        seen_ids: set[int] = set()
+        for part in parts:
+            for ent in part_index.get(part, ()):
+                if id(ent) not in seen_ids:
+                    seen_ids.add(id(ent))
+                    cand.append(ent)
+        if len(cand) == 1:
+            cand[0].members.append(span)
         else:
             # Zero or ambiguous full-name match. Group all occurrences of the same
             # surface into ONE entity (not one-per-occurrence): every "Curie" that

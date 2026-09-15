@@ -42,19 +42,33 @@ class LeakReport:
         return "BLOCKED: " + "; ".join(parts)
 
 
-def _appears_as_token(value: str, text: str) -> bool:
-    """Whole-word, case-sensitive check that ``value`` still appears in ``text``.
+def _isword(ch: str) -> bool:
+    return ch.isalnum() or ch == "_"
 
-    Word boundaries matter: the naive ``value in text`` flags a short value like
-    "Count" inside "Country" or "EU" inside "Europe", which would make the scanner
-    block almost every real document. A boundary is added only on an edge that is
-    itself a word character, so values wrapped in punctuation/spaces (emails,
-    IBANs) still match correctly.
+
+def _present_as_token(value: str, text: str) -> bool:
+    """Whole-word, case-sensitive: does ``value`` still appear as its own token?
+
+    Uses C-level ``str.find`` (fast, no per-value regex) then verifies word
+    boundaries only on word-char edges - so emails/IBANs wrapped in punctuation
+    match, but "Count" inside "Country" or "EU" inside "Europe" does not (which
+    would otherwise make the scanner block almost every real document).
     """
 
-    left = r"(?<!\w)" if value[:1].isalnum() or value[:1] == "_" else ""
-    right = r"(?!\w)" if value[-1:].isalnum() or value[-1:] == "_" else ""
-    return re.search(left + re.escape(value) + right, text) is not None
+    vlead = _isword(value[:1])
+    vtrail = _isword(value[-1:])
+    start = 0
+    n = len(text)
+    while True:
+        i = text.find(value, start)
+        if i < 0:
+            return False
+        j = i + len(value)
+        left_ok = (not vlead) or i == 0 or not _isword(text[i - 1])
+        right_ok = (not vtrail) or j >= n or not _isword(text[j])
+        if left_ok and right_ok:
+            return True
+        start = i + 1
 
 
 def scan(sanitized_text: str, vault: Vault | None = None,
@@ -72,10 +86,12 @@ def scan(sanitized_text: str, vault: Vault | None = None,
 
     leaked_values: list[str] = []
     if vault is not None:
-        for value in vault.values():
-            # A single character is never a meaningful leak signal (initials,
-            # stray letters) and would fire on ordinary text everywhere.
-            if len(value) >= 2 and _appears_as_token(value, sanitized_text):
+        # A single character is never a meaningful leak signal (initials, stray
+        # letters) and would fire everywhere. Search all values in combined,
+        # chunked alternation passes rather than one full-text scan per value
+        # (which was O(values x text) - slow on large documents).
+        for value in {v for v in vault.values() if len(v) >= 2}:
+            if _present_as_token(value, sanitized_text):
                 leaked_values.append(value)
 
     residual: list[Span] = []

@@ -71,8 +71,7 @@ def sanitize(text: str, policy: Policy, *, use_ner: bool = True,
             n_red += 1
         for span in entity.members:
             edits.append((span.start, span.end, replacement))
-            for k in range(span.start, span.end):
-                covered[k] = 1
+            covered[span.start:span.end] = b"\x01" * (span.end - span.start)
         # Record each surface for propagation (both TOKENIZE and REDACT, so a
         # redacted value is removed at every occurrence, not just detected ones).
         for surface in {m.value for m in entity.members} | {entity.canonical}:
@@ -105,14 +104,21 @@ def sanitize(text: str, policy: Policy, *, use_ner: bool = True,
             if token is None or covered[s] or covered[e - 1]:
                 continue
             edits.append((s, e, token))
-            for k in range(s, e):
-                covered[k] = 1
+            covered[s:e] = b"\x01" * (e - s)
 
-    # Apply edits right-to-left so earlier offsets stay valid.
-    edits.sort(key=lambda ed: ed[0], reverse=True)
-    out = text
+    # Apply all edits in a single left-to-right pass (O(text + edits)); repeated
+    # slicing would be O(edits x text) and dominated large documents.
+    edits.sort(key=lambda ed: ed[0])
+    parts: list[str] = []
+    pos = 0
     for start, end, replacement in edits:
-        out = out[:start] + replacement + out[end:]
+        if start < pos:
+            continue  # safety: skip any accidental overlap
+        parts.append(text[pos:start])
+        parts.append(replacement)
+        pos = end
+    parts.append(text[pos:])
+    out = "".join(parts)
 
     result = SanitizeResult(
         sanitized_text=out,

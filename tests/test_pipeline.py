@@ -49,6 +49,24 @@ def test_preview_masks_sensitive():
     assert "Alejandro Martinez" not in masked
 
 
+def test_large_repeated_document_round_trips():
+    # exercises the single-pass edit application and linear overlap resolution;
+    # a value repeated many times must be fully removed and restored.
+    doc = ("Alejandro Martinez met Maria Gomez in Berlin. " * 4000)
+    result = sanitize(doc, get_policy("maximum"), use_spacy=False)
+    assert "Alejandro Martinez" not in result.sanitized_text
+    assert result.leak_report.clean
+    assert restore(result.sanitized_text, result.vault).text == doc
+
+
+def test_empty_and_no_entity_text():
+    r = sanitize("", get_policy("maximum"), use_spacy=False)
+    assert r.sanitized_text == "" and r.leak_report.clean
+    r2 = sanitize("just some ordinary words here", get_policy("maximum"),
+                  use_spacy=False)
+    assert r2.leak_report.clean
+
+
 def test_redact_propagates_all_occurrences():
     from censorbot.policy import policy_from_dict
     p = policy_from_dict({"name": "r", "default": "keep",

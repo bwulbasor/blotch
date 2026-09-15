@@ -85,6 +85,8 @@ def resolve_overlaps(spans: list[Span]) -> list[Span]:
     replaced region is never left with a leaked fragment.
     """
 
+    if not spans:
+        return []
     # Confidence first, then width: a structural high-confidence span (an IPv4 or
     # MAC) beats a longer but weaker one that merely bridges it (a greedy phone
     # run spanning "192.168.5.10 (01"). Length breaks ties among equal-confidence
@@ -93,10 +95,16 @@ def resolve_overlaps(spans: list[Span]) -> list[Span]:
         spans,
         key=lambda s: (-s.confidence, -(s.end - s.start), s.start),
     )
+    # A covered bitmap makes overlap checks O(span length) instead of O(kept),
+    # so this is linear in total span length rather than quadratic in span count
+    # (which mattered on multi-MB documents with tens of thousands of spans).
+    end = max(s.end for s in ordered)
+    covered = bytearray(end)
     kept: list[Span] = []
     for span in ordered:
-        if any(span.overlaps(k) for k in kept):
+        if covered.find(1, span.start, span.end) != -1:
             continue
         kept.append(span)
+        covered[span.start:span.end] = b"\x01" * (span.end - span.start)
     kept.sort(key=lambda s: s.start)
     return kept
