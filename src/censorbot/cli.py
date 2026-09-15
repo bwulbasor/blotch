@@ -372,7 +372,18 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    return args.func(args)
+    try:
+        return args.func(args)
+    except FileNotFoundError as exc:
+        print(f"[error] file not found: {exc.filename or exc}", file=sys.stderr)
+        return 2
+    except (ValueError, RuntimeError) as exc:
+        # bad policy name, unsupported file type, wrong passphrase, missing extra
+        print(f"[error] {exc}", file=sys.stderr)
+        return 2
+    except KeyboardInterrupt:  # pragma: no cover
+        print("\ninterrupted", file=sys.stderr)
+        return 130
 
 
 if __name__ == "__main__":  # pragma: no cover

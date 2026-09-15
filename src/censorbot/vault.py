@@ -125,7 +125,12 @@ class Vault:
         if envelope.get("encrypted"):
             if not passphrase:
                 raise ValueError("vault is encrypted; a passphrase is required")
-            payload = _decrypt(envelope, passphrase)
+            try:
+                payload = _decrypt(envelope, passphrase)
+            except RuntimeError:
+                raise  # missing crypto extra - already a clear message
+            except Exception as exc:  # InvalidTag etc.
+                raise ValueError("wrong passphrase or corrupted vault") from exc
         else:
             payload = base64.b64decode(envelope["data"])
         return cls.from_dict(json.loads(payload.decode("utf-8")))

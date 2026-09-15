@@ -22,7 +22,7 @@ def test_wrong_passphrase_fails(tmp_path):
                       use_spacy=False)
     path = tmp_path / "vault.cbv"
     result.vault.save(str(path), passphrase="right")
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError, match="wrong passphrase"):
         Vault.load(str(path), passphrase="wrong")
 
 
