@@ -73,5 +73,8 @@ _RE = re.compile(r"(?<!\w)(?:" + "|".join(re.escape(p) for p in _ALL) + r")(?!\w
 
 def detect(text: str) -> list[Span]:
     """Return LOCATION spans for known place names in ``text``."""
-    return [Span(m.start(), m.end(), EntityType.LOCATION, m.group(0), 0.7, "gazetteer")
+    # Confidence sits just above PERSON (0.5) so a bare city wins the "Berlin"
+    # vs PERSON tie, but below ORGANIZATION (0.55) so a city inside an org name
+    # ("Regional Court Graz") doesn't fragment the org in overlap resolution.
+    return [Span(m.start(), m.end(), EntityType.LOCATION, m.group(0), 0.52, "gazetteer")
             for m in _RE.finditer(text)]

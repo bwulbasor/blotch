@@ -50,14 +50,18 @@ _STREET_DE = re.compile(
 )
 # UK postcode - distinctive enough to detect standalone.
 _UK_POSTCODE = re.compile(r"\b[A-Z]{1,2}\d[A-Z\d]?\s+\d[A-Z]{2}\b")
+# MAC address (colon or hyphen separated).
+_MAC = re.compile(r"\b(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b")
+# Decimal-degree geo coordinates (>=3 decimals each, to avoid version numbers).
+_COORD = re.compile(r"[-+]?\d{1,2}\.\d{3,}\s*,\s*[-+]?\d{1,3}\.\d{3,}")
 # Court / reference numbers like "AZ 73 C 226", "17 C 391/26", "5 Ob 12/25":
 # number, short letter code, number, optional /year. Distinctive enough that a
 # bare digit-letter-digit run in prose rarely collides.
-_CASE_NUM = re.compile(r"\b(?:AZ\s+)?\d{1,4}\s+[A-Z][A-Za-z]{0,3}\s+\d{1,4}(?:\s*/\s*\d{2,4})?\b")
+_CASE_NUM = re.compile(r"\b(?:AZ\s+)?\d{1,4}\s+[A-Z][a-z]?\s+\d{1,4}(?:\s*/\s*\d{2,4})?\b")
 # Explicitly-labelled identifiers: "Patient No: 48392017", "Case AZ 17 C 391/26".
 _LABELLED = re.compile(
     r"\b(?P<label>patient|case|file|account|acct|reference|ref|invoice|policy|"
-    r"member|customer|tax|vat|nino|nhs)\b"
+    r"member|customer|tax|vat|nino|nhs|passport|licence|license|driver|dl)\b"
     # optional filler words / punctuation between the label and the value
     r"(?:\s+(?:number|no\.?|id|ref|is|was|of))*\s*[:#\-]?\s*"
     # value: optional uppercase prefix (kept case-sensitive so lowercase filler
@@ -81,6 +85,11 @@ _LABEL_TYPE = {
     "vat": EntityType.GOV_ID,
     "nino": EntityType.GOV_ID,
     "nhs": EntityType.GOV_ID,
+    "passport": EntityType.GOV_ID,
+    "licence": EntityType.GOV_ID,
+    "license": EntityType.GOV_ID,
+    "driver": EntityType.GOV_ID,
+    "dl": EntityType.GOV_ID,
 }
 # Common date forms: 2026-03-14, 14/03/2026, 14 March 2026, March 14, 2026.
 _MONTHS = (
@@ -117,6 +126,8 @@ def detect(text: str) -> list[Span]:
     spans += _yield(_STREET_EN, text, EntityType.ADDRESS, "street_en", 0.85)
     spans += _yield(_STREET_DE, text, EntityType.ADDRESS, "street_de", 0.85)
     spans += _yield(_UK_POSTCODE, text, EntityType.ADDRESS, "uk_postcode", 0.85)
+    spans += _yield(_MAC, text, EntityType.MAC, "mac", 0.95)
+    spans += _yield(_COORD, text, EntityType.COORDINATES, "coord", 0.8)
     spans += _yield(_CASE_NUM, text, EntityType.CASE_ID, "case_num", 0.8)
     spans += _yield(_DATE, text, EntityType.DATE, "date", 0.7)
 

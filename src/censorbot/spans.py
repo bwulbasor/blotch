@@ -34,6 +34,8 @@ class EntityType(str, Enum):
     PATIENT_ID = "PATIENT_ID"
     CASE_ID = "CASE_ID"
     ACCOUNT_ID = "ACCOUNT_ID"
+    MAC = "MAC"
+    COORDINATES = "COORDINATES"
 
     def __str__(self) -> str:  # pragma: no cover - trivial
         return self.value
@@ -82,11 +84,13 @@ def resolve_overlaps(spans: list[Span]) -> list[Span]:
     replaced region is never left with a leaked fragment.
     """
 
-    # Greedy: consider widest / most-confident first so a long span always wins
-    # over a shorter one it overlaps, regardless of start position.
+    # Confidence first, then width: a structural high-confidence span (an IPv4 or
+    # MAC) beats a longer but weaker one that merely bridges it (a greedy phone
+    # run spanning "192.168.5.10 (01"). Length breaks ties among equal-confidence
+    # spans so "Marie Curie" still wins over "Marie".
     ordered = sorted(
         spans,
-        key=lambda s: (-(s.end - s.start), -s.confidence, s.start),
+        key=lambda s: (-s.confidence, -(s.end - s.start), s.start),
     )
     kept: list[Span] = []
     for span in ordered:

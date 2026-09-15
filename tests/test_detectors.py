@@ -56,6 +56,30 @@ def test_gazetteer_locations():
     assert (EntityType.LOCATION, "Japan") in vals
 
 
+def test_mac_and_coordinates_and_ids():
+    assert EntityType.MAC in _types("device 01:23:45:67:89:ab online")
+    assert EntityType.COORDINATES in _types("at 48.2082, 16.3738 today")
+    assert EntityType.GOV_ID in _types("Passport X1234567 issued")
+    assert EntityType.GOV_ID in _types("driver licence AB123456")
+
+
+def test_mac_not_confused_with_ipv6():
+    spans = deterministic.detect("mac 01:23:45:67:89:ab here")
+    macs = [s for s in spans if s.entity_type == EntityType.MAC]
+    # after overlap resolution MAC must win over the IPv6-shaped match
+    from censorbot.spans import resolve_overlaps
+    kept = resolve_overlaps(deterministic.detect("mac 01:23:45:67:89:ab"))
+    assert any(s.entity_type == EntityType.MAC for s in kept)
+    assert macs
+
+
+def test_short_month_date_not_case_id():
+    # "1 Jan 1990" is a date, not a court case number
+    types = _types("born 1 Jan 1990 in town")
+    assert EntityType.DATE in types
+    assert EntityType.CASE_ID not in types
+
+
 def test_city_typed_as_location_not_person():
     from censorbot import get_policy, sanitize
     from censorbot.tokens import find_tokens

@@ -23,6 +23,11 @@ def test_synthetic_precision_high():
     assert res.precision >= 0.98, res.report()
 
 
+def test_synthetic_type_accuracy_high():
+    res = evaluate(use_spacy=False)
+    assert res.type_accuracy >= 0.97, res.report()
+
+
 def test_headers_and_currency_not_persons():
     from censorbot.detectors import ner
     from censorbot.spans import EntityType

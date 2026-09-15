@@ -137,7 +137,8 @@ def medical_doc(rng: random.Random) -> LabeledDoc:
     b.ent(EntityType.PHONE, rng.choice(_PHONES)).lit(".\n")
     b.lit("Home address: ").ent(EntityType.ADDRESS, rng.choice(_ADDRESSES)).lit(".\n")
     b.lit("Records server: ").ent(EntityType.IP, f"192.168.{rng.randint(0,255)}.{rng.randint(1,254)}")
-    b.lit(".\n")
+    b.lit(" (").ent(EntityType.MAC, ":".join(f"{rng.randint(0,255):02x}" for _ in range(6)))
+    b.lit(").\n")
     return b.build("medical")
 
 
@@ -153,6 +154,9 @@ def legal_doc(rng: random.Random) -> LabeledDoc:
     b.ent(EntityType.PERSON, d).lit(" is liable. Contact ")
     b.ent(EntityType.EMAIL, _email(rng, a)).lit(" or ")
     b.ent(EntityType.PHONE, rng.choice(_PHONES)).lit(".\n")
+    b.lit("Property at ")
+    b.ent(EntityType.COORDINATES, f"{rng.uniform(46,49):.4f}, {rng.uniform(9,17):.4f}")
+    b.lit(".\n")
     return b.build("legal")
 
 

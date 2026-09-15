@@ -35,7 +35,7 @@ _ALL = list(EntityType)
 _CONTACT = [EntityType.PERSON, EntityType.EMAIL, EntityType.PHONE, EntityType.ADDRESS]
 _IDS = [
     EntityType.IBAN, EntityType.CREDIT_CARD, EntityType.GOV_ID, EntityType.PATIENT_ID,
-    EntityType.CASE_ID, EntityType.ACCOUNT_ID,
+    EntityType.CASE_ID, EntityType.ACCOUNT_ID, EntityType.MAC, EntityType.COORDINATES,
 ]
 
 
