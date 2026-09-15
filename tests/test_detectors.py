@@ -47,6 +47,16 @@ def test_address_no_false_positive_on_plain_numbers():
     assert EntityType.ADDRESS not in _types("see Section 5 Way forward")
 
 
+def test_us_zip_and_bic():
+    from censorbot.spans import resolve_overlaps
+    def vals(t):
+        return {s.value for s in resolve_overlaps(deterministic.detect(t))}
+    assert "IL 62704" in vals("Office at Springfield, IL 62704 now")
+    assert "DEUTDEFF500" in vals("BIC: DEUTDEFF500 for transfer")
+    # no comma -> not a state/zip; bare ZIP alone not matched
+    assert EntityType.ADDRESS not in _types("the IN 12345 reference")
+
+
 def test_gazetteer_locations():
     from censorbot.detectors import gazetteer
     vals = {(s.entity_type, s.value) for s in gazetteer.detect(

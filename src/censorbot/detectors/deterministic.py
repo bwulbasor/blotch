@@ -52,6 +52,15 @@ _STREET_DE = re.compile(
 )
 # UK postcode - distinctive enough to detect standalone.
 _UK_POSTCODE = re.compile(r"\b[A-Z]{1,2}\d[A-Z\d]?\s+\d[A-Z]{2}\b")
+# US "State ZIP" in address context (comma-anchored to avoid matching "IN 12345"
+# style false positives): e.g. "Springfield, IL 62704" / "..., CA 90210-1234".
+_US_STATE_ZIP = re.compile(r",\s*(?P<sz>[A-Z]{2}\s+\d{5}(?:-\d{4})?)\b")
+# Bank SWIFT/BIC code - only when labelled, since a bare 8-letter run is common.
+_BIC = re.compile(
+    r"\b(?:BIC|SWIFT)\b\s*(?:code)?\s*[:#]?\s*"
+    r"(?P<bic>(?-i:[A-Z]{6}[A-Z0-9]{2}(?:[A-Z0-9]{3})?))\b",
+    re.IGNORECASE,
+)
 # MAC address (colon or hyphen separated).
 _MAC = re.compile(r"\b(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b")
 # Crypto wallet addresses. ETH: 0x + 40 hex (very distinctive). BTC: base58
@@ -132,6 +141,12 @@ def detect(text: str) -> list[Span]:
     spans += _yield(_STREET_EN, text, EntityType.ADDRESS, "street_en", 0.85)
     spans += _yield(_STREET_DE, text, EntityType.ADDRESS, "street_de", 0.85)
     spans += _yield(_UK_POSTCODE, text, EntityType.ADDRESS, "uk_postcode", 0.85)
+    for m in _US_STATE_ZIP.finditer(text):
+        spans.append(Span(m.start("sz"), m.end("sz"), EntityType.ADDRESS,
+                          m.group("sz"), 0.8, "us_state_zip"))
+    for m in _BIC.finditer(text):
+        spans.append(Span(m.start("bic"), m.end("bic"), EntityType.ACCOUNT_ID,
+                          m.group("bic"), 0.9, "bic"))
     spans += _yield(_MAC, text, EntityType.MAC, "mac", 0.95)
     spans += _yield(_ETH, text, EntityType.CRYPTO, "eth", 0.97)
     spans += _yield(_BTC, text, EntityType.CRYPTO, "btc", 0.9)
