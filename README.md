@@ -259,10 +259,16 @@ own synthetic data. `benchmarks/tab_eval.py` runs censorbot against
 real European Court of Human Rights judgments, each span labelled DIRECT / QUASI.
 The headline metric is **DIRECT recall** (a missed direct identifier is a leak):
 
-| Split | DIRECT recall | PERSON | CODE (case refs) | QUASI recall |
-|------|---------------|--------|------------------|--------------|
-| test | **100%** (374/374) | 100% | 100% | 82% |
-| dev  | **100%** (391/391) | 100% | 100% | 84% |
+| Split | DIRECT recall | PERSON | CODE (case refs) | QUASI recall | precision |
+|------|---------------|--------|------------------|--------------|-----------|
+| test | **100%** (374/374) | 100% | 100% | 82% | **94%** |
+| dev  | **100%** (391/391) | 100% | 100% | 84% | 93% |
+
+Precision started at **65%** — the capitalisation heuristic flagged capitalised
+common nouns in legal text (`Court`, `Government`, `Convention`) and headings as
+names. A data-driven stoplist and requiring organisations to have a real
+distinguishing word (not just `The`/`European` + `Court`) cut over-redaction from
+35% to 6% **with no loss of DIRECT recall (still 100%) or name recall**.
 
 A second benchmark, [AI4Privacy pii-masking](https://huggingface.co/datasets/ai4privacy/pii-masking-200k),
 covers the contact/financial PII that legal text lacks. On 2,000 English rows,

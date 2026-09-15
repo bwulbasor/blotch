@@ -114,6 +114,10 @@ _NON_NAME = {w.lower() for w in _STOPWORDS} | {
     "supreme", "federal", "national", "international", "regional", "central",
     "special", "general", "foreign", "affairs", "grand", "adviser", "advisers",
     "class", "prevention", "tax", "vice", "appellate", "ordinary", "military",
+    "legal", "justice", "directorate", "terrorism", "reports", "report",
+    "judgments", "judgements", "lawyer", "lawyers", "public", "common",
+    "employment", "district", "districts",
+    "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
     # ORG-suffix words also drop when standing alone (a lone "Court"/"Bank" is
     # not an org and not a name)
     "hospital", "clinic", "university", "bank", "group", "foundation", "company",
@@ -246,15 +250,19 @@ def _heuristic_detect(text: str) -> list[Span]:
         lowered = {r.group(0).lower().rstrip(".") for r in run}
         titled = _is_title(run[0].group(0))
 
-        # ORG is decided on the FULL run (suffix words must not be trimmed away),
-        # but a lone suffix word ("Court", "Bank", "Hospital") is not an org - a
-        # real org name has a distinguishing word before the suffix.
-        if len(run) >= 2 and lowered & _ORG_SUFFIX_WORDS:
-            start, end = run[0].start(), run[-1].end()
-            spans.append(Span(start, end, EntityType.ORGANIZATION, text[start:end],
-                              0.55, "ner_heur"))
-            i = j
-            continue
+        # ORG needs a suffix word AND a distinguishing word that is neither a
+        # stopword nor a suffix - "Vienna General Hospital" is an org, but "Court",
+        # "The Court" and "European Court" (only stopwords + a suffix) are not.
+        if lowered & _ORG_SUFFIX_WORDS:
+            distinguishing = [r for r in run
+                              if r.group(0).lower().rstrip(".") not in _NON_NAME
+                              and r.group(0).lower().rstrip(".") not in _ORG_SUFFIX_WORDS]
+            if distinguishing:
+                start, end = run[0].start(), run[-1].end()
+                spans.append(Span(start, end, EntityType.ORGANIZATION,
+                                  text[start:end], 0.55, "ner_heur"))
+                i = j
+                continue
 
         # PERSON candidate: trim function / structure words from both ends so
         # "In Vienna" -> "Vienna" and "DISCHARGE SUMMARY" -> nothing, without
