@@ -81,6 +81,32 @@ _NON_NAME = {w.lower() for w in _STOPWORDS} | {
     "home", "records", "property", "ship", "shipping", "wallet", "order",
     "orders", "item", "items", "sender", "recipient", "account", "card", "cards",
     "server", "host", "device", "user", "username", "password", "login",
+    # common capitalised nouns in formal / legal / institutional text - flagged
+    # as names by a capitalisation heuristic but never names themselves. Role
+    # words (president, judge, ...) are trimmed from run ends, so "President Smith"
+    # still keeps "Smith". Data-driven from TAB false positives.
+    "convention", "conventions", "court", "courts", "government", "governments",
+    "rule", "rules", "agent", "agents", "commission", "commissioner", "president",
+    "vice-president", "act", "acts", "state", "states", "chamber", "registrar",
+    "board", "secretary", "law", "laws", "protocol", "protocols", "article",
+    "articles", "section", "sections", "protection", "freedom", "freedoms",
+    "right", "rights", "party", "parties", "applicant", "applicants",
+    "respondent", "respondents", "judge", "judges", "member", "members",
+    "committee", "council", "parliament", "ministry", "department", "office",
+    "authority", "authorities", "republic", "kingdom", "union", "federation",
+    "tribunal", "senate", "congress", "assembly", "bureau", "agency", "agencies",
+    "prosecutor", "counsel", "attorney", "witness", "witnesses", "directive",
+    "regulation", "regulations", "statute", "amendment", "clause", "paragraph",
+    "paragraphs", "subsection", "schedule", "annex", "decree", "ordinance",
+    "resolution", "treaty", "charter", "code", "motion", "petition", "appeal",
+    "judgment", "judgement", "verdict", "ruling", "order", "orders", "decision",
+    "decisions", "opinion", "hearing", "hearings", "trial", "session",
+    "proceeding", "proceedings", "circumstances", "facts", "procedure",
+    "background", "introduction", "conclusion", "analysis", "discussion",
+    "findings", "reasons", "grounds", "merits", "admissibility", "jurisdiction",
+    "remedy", "remedies", "damages", "costs", "compensation", "chairman",
+    "chairwoman", "deputy", "minister", "governor", "ambassador", "delegate",
+    "representative", "official", "officer", "fundamental",
     # currency codes and financial labels (all-caps codes, never names)
     "eur", "usd", "gbp", "chf", "jpy", "cad", "aud", "cny", "sek", "nok", "dkk",
     "pln", "czk", "huf", "iban", "bic", "swift", "vat", "pin", "otp", "url",
