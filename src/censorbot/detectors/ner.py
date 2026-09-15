@@ -61,6 +61,9 @@ _SENTENCE_OPENERS = {w.lower() for w in _STOPWORDS} | {
     "hi", "yes", "no", "ok", "okay", "well", "just", "only", "even", "still",
     "again", "once", "whenever", "wherever", "whether", "unless", "until",
     "meanwhile", "following", "regarding", "concerning", "per", "via", "note",
+    "under", "within", "having", "pursuant", "applying", "acting", "both",
+    "further", "given", "considering", "notwithstanding", "upon", "thereafter",
+    "moreover", "furthermore", "whilst", "throughout", "hereinafter",
 }
 
 # Words that are never a person's name: function words and document-structure
@@ -106,7 +109,18 @@ _NON_NAME = {w.lower() for w in _STOPWORDS} | {
     "findings", "reasons", "grounds", "merits", "admissibility", "jurisdiction",
     "remedy", "remedies", "damages", "costs", "compensation", "chairman",
     "chairwoman", "deputy", "minister", "governor", "ambassador", "delegate",
-    "representative", "official", "officer", "fundamental",
+    "representative", "official", "officer", "fundamental", "human", "european",
+    "case", "no", "criminal", "civil", "administrative", "constitutional",
+    "supreme", "federal", "national", "international", "regional", "central",
+    "special", "general", "foreign", "affairs", "grand", "adviser", "advisers",
+    "class", "prevention", "tax", "vice", "appellate", "ordinary", "military",
+    # ORG-suffix words also drop when standing alone (a lone "Court"/"Bank" is
+    # not an org and not a name)
+    "hospital", "clinic", "university", "bank", "group", "foundation", "company",
+    "sons", "partners", "associates", "holdings",
+    # ordinals used in section/chamber names
+    "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth",
+    "ninth", "tenth",
     # currency codes and financial labels (all-caps codes, never names)
     "eur", "usd", "gbp", "chf", "jpy", "cad", "aud", "cny", "sek", "nok", "dkk",
     "pln", "czk", "huf", "iban", "bic", "swift", "vat", "pin", "otp", "url",
@@ -232,8 +246,10 @@ def _heuristic_detect(text: str) -> list[Span]:
         lowered = {r.group(0).lower().rstrip(".") for r in run}
         titled = _is_title(run[0].group(0))
 
-        # ORG is decided on the FULL run (suffix words must not be trimmed away).
-        if lowered & _ORG_SUFFIX_WORDS:
+        # ORG is decided on the FULL run (suffix words must not be trimmed away),
+        # but a lone suffix word ("Court", "Bank", "Hospital") is not an org - a
+        # real org name has a distinguishing word before the suffix.
+        if len(run) >= 2 and lowered & _ORG_SUFFIX_WORDS:
             start, end = run[0].start(), run[-1].end()
             spans.append(Span(start, end, EntityType.ORGANIZATION, text[start:end],
                               0.55, "ner_heur"))
