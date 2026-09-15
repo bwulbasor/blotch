@@ -12,7 +12,9 @@ import html
 import json
 
 from .detectors import detect_all
+from .pipeline import sanitize
 from .policy import Action, Policy
+from .reidrisk import RiskLevel, assess
 from .resolver import resolve
 from .spans import EntityType, resolve_overlaps
 from .tokens import make_token
@@ -78,10 +80,35 @@ def render_review_html(text: str, policy: Policy, *, use_spacy: bool = True,
         f'{html.escape(t)} · {n}</span>'
         for t, n in sorted(counts.items())
     )
+
+    # Full sanitisation (with propagation + leak scan) for an accurate outbound
+    # preview, a copy button, and the residual re-identification-risk advisory.
+    result = sanitize(text, policy, use_spacy=use_spacy)
+    sanitized = result.sanitized_text
+    risk = assess(sanitized)
+    leak_clean = result.leak_report.clean if result.leak_report else True
+    risk_class = {RiskLevel.NONE: "ok", RiskLevel.LOW: "low",
+                  RiskLevel.MEDIUM: "med", RiskLevel.HIGH: "high"}[risk.level]
+    risk_banner = (
+        f'<div class="risk {risk_class}"><strong>Re-ID risk: {risk.level.value.upper()}'
+        f'</strong> — {html.escape(risk.summary())}</div>' if risk.level != RiskLevel.NONE
+        else '<div class="risk ok"><strong>Re-ID risk: none detected</strong> '
+        '(advisory only)</div>'
+    )
+    leak_banner = (
+        '<div class="risk ok"><strong>Leak scan: clean</strong> — safe to send</div>'
+        if leak_clean else
+        f'<div class="risk high"><strong>Leak scan: BLOCKED</strong> — '
+        f'{html.escape(result.leak_report.summary())}</div>'
+    )
+
     return _TEMPLATE.format(
         title=html.escape(title), policy=html.escape(policy.name),
         total=total, legend=legend, body=body,
-        counts_json=html.escape(json.dumps(counts)),
+        risk_banner=risk_banner, leak_banner=leak_banner,
+        # Escape "<" so embedded text can't break out of the <script> block
+        # (a "</script>" in the data) or inject markup.
+        sanitized_json=json.dumps(sanitized).replace("<", "\\u003c"),
     )
 
 
@@ -123,6 +150,12 @@ _TEMPLATE = """<!doctype html>
      position: absolute; left: 0; top: 1.7em; z-index: 5; white-space: nowrap;
      background: #111; color: #fff; font-size: 12px; padding: 4px 8px;
      border-radius: 6px; box-shadow: 0 2px 8px #0004; }}
+  .banners {{ display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 20px; }}
+  .risk {{ font-size: 13px; padding: 6px 12px; border-radius: 8px; flex: 1 1 280px; }}
+  .risk.ok {{ background: #1e7d3322; border: 1px solid #1e7d3366; }}
+  .risk.low {{ background: #b8860022; border: 1px solid #b8860066; }}
+  .risk.med {{ background: #d9640022; border: 1px solid #d9640088; }}
+  .risk.high {{ background: #9a031e22; border: 1px solid #9a031e88; }}
   footer {{ text-align: center; color: #888; font-size: 12px; padding: 20px; }}
 </style></head><body>
 <header>
@@ -131,17 +164,22 @@ _TEMPLATE = """<!doctype html>
   <strong>{policy}</strong></span>
   <span class="spacer"></span>
   <button id="toggle">Reveal originals</button>
-  <button class="primary" id="send" title="In a real client this transmits the masked version">
-    Send sanitized version</button>
+  <button class="primary" id="copy">Copy sanitized text</button>
 </header>
+<div class="banners">{leak_banner}{risk_banner}</div>
 <div class="legend">{legend}</div>
 <div class="doc">{body}</div>
 <footer>All detection ran locally. Only the masked tokens would leave your device.</footer>
 <script>
+  const SANITIZED = {sanitized_json};
   const b = document.body, t = document.getElementById('toggle');
   t.onclick = () => {{ b.classList.toggle('reveal');
     t.textContent = b.classList.contains('reveal') ? 'Hide originals' : 'Reveal originals'; }};
-  document.getElementById('send').onclick = () =>
-    alert('Demo: a real client would transmit the masked document only.');
+  const copy = document.getElementById('copy');
+  copy.onclick = async () => {{
+    try {{ await navigator.clipboard.writeText(SANITIZED);
+      copy.textContent = 'Copied ✓'; setTimeout(() => copy.textContent = 'Copy sanitized text', 1500);
+    }} catch (e) {{ alert('Sanitized text:\\n\\n' + SANITIZED); }}
+  }};
 </script>
 </body></html>"""

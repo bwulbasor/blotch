@@ -19,6 +19,7 @@ from .spans import Span, resolve_overlaps
 from .vault import Vault
 
 _REDACTED = "[REDACTED]"
+_PROPAGATE_CHUNK = 400  # max surfaces per combined propagation regex
 
 
 def _word_bounded(surface: str) -> str:
@@ -90,8 +91,13 @@ def sanitize(text: str, policy: Policy, *, use_ner: bool = True,
     # One combined regex, longest surface first, so the pass is a single scan.
     surfaces = sorted((s for s, t in surface_token.items() if t), key=len,
                       reverse=True)
-    if surfaces:
-        combined = re.compile(r"(?<!\w)(?:" + "|".join(re.escape(s) for s in surfaces)
+    # Chunk the alternation so a document with thousands of distinct surfaces
+    # never builds one pathologically large pattern. Longest-first ordering is
+    # preserved within each chunk; cross-chunk overlaps are handled by the
+    # `covered` mask, so the split does not change results.
+    for start in range(0, len(surfaces), _PROPAGATE_CHUNK):
+        chunk = surfaces[start:start + _PROPAGATE_CHUNK]
+        combined = re.compile(r"(?<!\w)(?:" + "|".join(re.escape(s) for s in chunk)
                               + r")(?!\w)")
         for m in combined.finditer(text):
             s, e = m.start(), m.end()
