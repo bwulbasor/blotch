@@ -64,6 +64,14 @@ _SENTENCE_OPENERS = {w.lower() for w in _STOPWORDS} | {
     "under", "within", "having", "pursuant", "applying", "acting", "both",
     "further", "given", "considering", "notwithstanding", "upon", "thereafter",
     "moreover", "furthermore", "whilst", "throughout", "hereinafter",
+    # pronouns, modals, and common imperative verbs that open conversational /
+    # form sentences (dropped only when sentence-initial, so real names are safe)
+    "your", "our", "could", "can", "kindly", "use", "let", "need", "good",
+    "check", "may", "might", "would", "should", "will", "shall", "must", "do",
+    "does", "did", "get", "got", "make", "take", "give", "send", "provide",
+    "enter", "click", "call", "contact", "reach", "confirm", "verify", "update",
+    "review", "submit", "complete", "ensure", "what", "which", "who", "whom",
+    "whose", "where", "why", "how", "want", "please", "kindly", "ensure",
 }
 
 # Words that are never a person's name: function words and document-structure
@@ -128,6 +136,10 @@ _NON_NAME = {w.lower() for w in _STOPWORDS} | {
     # currency codes and financial labels (all-caps codes, never names)
     "eur", "usd", "gbp", "chf", "jpy", "cad", "aud", "cny", "sek", "nok", "dkk",
     "pln", "czk", "huf", "iban", "bic", "swift", "vat", "pin", "otp", "url",
+    # tech / crypto type labels - the WORD, not the value (deterministic detectors
+    # still catch the actual IP/MAC/SSN/wallet); these are never names on their own
+    "ip", "mac", "ssn", "cvv", "cvc", "imei", "id", "stem", "bitcoin", "litecoin",
+    "ethereum", "dogecoin", "crypto", "wallet", "vin", "vrm", "gps", "sim",
 }
 
 
