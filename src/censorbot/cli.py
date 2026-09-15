@@ -68,7 +68,6 @@ def _cmd_inspect(args) -> int:
     print(f"Detected {result.entity_count()} entity/entities "
           f"({result.num_tokenized} tokenized, {result.num_redacted} redacted)\n")
     for ent in sorted(result.entities, key=lambda e: (e.entity_type.value, e.index)):
-        from .tokens import make_token
         token = make_token(ent.entity_type, ent.index)
         conf = max((s.confidence for s in ent.members), default=0.0)
         print(f"  {token:<20} {ent.entity_type.value:<14} "

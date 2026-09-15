@@ -37,6 +37,10 @@ class SanitizeResult:
     leak_report: LeakReport | None = None
     num_tokenized: int = 0
     num_redacted: int = 0
+    #: The actual replacements applied, in original-text coordinates:
+    #: (start, end, replacement). Includes propagated occurrences, so a masked
+    #: preview built from these matches the sanitized output exactly.
+    edit_spans: list[tuple[int, int, str]] = field(default_factory=list)
 
     def entity_count(self) -> int:
         return len(self.entities)
@@ -134,6 +138,7 @@ def sanitize(text: str, policy: Policy, *, use_ner: bool = True,
         entities=kept_entities,
         num_tokenized=n_tok,
         num_redacted=n_red,
+        edit_spans=edits,  # already sorted ascending, non-overlapping
     )
     if run_leak_scan:
         result.leak_report = scan(out, vault)

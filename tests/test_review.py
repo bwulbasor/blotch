@@ -29,6 +29,18 @@ def test_review_script_embed_cannot_break_out():
     assert "\\u003c/script>" in out or "\\u003cimg" in out
 
 
+def test_review_preview_matches_sanitized_output():
+    # a sentence-initial repeat is masked by propagation in the real output;
+    # the preview must mask it too (no divergence between preview and output).
+    import re
+    text = "We cite Marie Curie. Curie won twice. Later, Curie retired."
+    html = render_review_html(text, get_policy("maximum"), use_spacy=False)
+    body = re.search(r'<div class="doc">(.*?)</div>', html, re.S).group(1)
+    visible = re.sub(r'<span class="orig">.*?</span>', "", body)  # drop revealable text
+    plain = re.sub(r"<[^>]+>", "", visible)
+    assert "Curie" not in plain  # every occurrence masked, matching the output
+
+
 def test_review_has_risk_and_leak_banners():
     out = render_review_html("Contact a@b.com in Berlin.", get_policy("personal"),
                              use_spacy=False)

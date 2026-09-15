@@ -11,13 +11,11 @@ from __future__ import annotations
 import html
 import json
 
-from .detectors import detect_all
 from .pipeline import sanitize
-from .policy import Action, Policy
+from .policy import Policy
 from .reidrisk import RiskLevel, assess
-from .resolver import resolve
-from .spans import EntityType, resolve_overlaps
-from .tokens import make_token
+from .spans import EntityType
+from .tokens import parse_token
 
 # A colour-blind-safe-ish palette keyed by type family.
 _COLORS = {
@@ -37,36 +35,31 @@ def render_review_html(text: str, policy: Policy, *, use_spacy: bool = True,
                        title: str = "censorbot review") -> str:
     """Return a standalone HTML review page for ``text`` under ``policy``."""
 
-    spans = resolve_overlaps(detect_all(text, use_spacy=use_spacy))
-    entities = resolve(spans)
+    # One sanitisation pass drives everything: the masked body is built from the
+    # *actual* edit spans (propagation included), so the preview matches the
+    # outbound document exactly rather than diverging from it.
+    result = sanitize(text, policy, use_spacy=use_spacy)
+    sanitized = result.sanitized_text
 
-    # Map each member span -> (token, entity) for spans the policy acts on.
-    marked: list[tuple[int, int, str, str, str, float]] = []
     counts: dict[str, int] = {}
-    for ent in entities:
-        action = policy.action_for(ent.entity_type)
-        if action == Action.KEEP:
-            continue
-        token = ("[REDACTED]" if action == Action.REDACT
-                 else make_token(ent.entity_type, ent.index))
-        counts[ent.entity_type.value] = counts.get(ent.entity_type.value, 0) + 1
-        conf = max((s.confidence for s in ent.members), default=0.0)
-        for s in ent.members:
-            marked.append((s.start, s.end, ent.entity_type.value, token, s.value, conf))
-    marked.sort(key=lambda m: m[0])
-
-    # Build the annotated body, escaping the non-sensitive text between spans.
     parts: list[str] = []
     cursor = 0
-    for start, end, etype, token, value, conf in marked:
+    for start, end, replacement in result.edit_spans:
         if start < cursor:
             continue  # safety: skip any residual overlap
+        parsed = parse_token(replacement)
+        etype = parsed[0] if parsed else "REDACTED"
+        counts[etype] = counts.get(etype, 0) + 1
+        value = text[start:end]
+        try:
+            color = _COLORS.get(EntityType(etype), _DEFAULT_COLOR)
+        except ValueError:
+            color = _DEFAULT_COLOR
         parts.append(html.escape(text[cursor:start]))
-        color = _COLORS.get(EntityType(etype), _DEFAULT_COLOR)
         parts.append(
             f'<span class="pii" style="--c:{color}" '
-            f'data-type="{html.escape(etype)}" data-token="{html.escape(token)}" '
-            f'data-conf="{conf:.0%}" data-orig="{html.escape(value)}" tabindex="0">'
+            f'data-type="{html.escape(etype)}" data-token="{html.escape(replacement)}" '
+            f'data-orig="{html.escape(value)}" tabindex="0">'
             f'<span class="mask">{"█" * min(len(value), 14)}</span>'
             f'<span class="orig">{html.escape(value)}</span></span>'
         )
@@ -76,15 +69,11 @@ def render_review_html(text: str, policy: Policy, *, use_spacy: bool = True,
 
     total = sum(counts.values())
     legend = "".join(
-        f'<span class="chip" style="--c:{_COLORS.get(EntityType(t), _DEFAULT_COLOR)}">'
+        f'<span class="chip" style="--c:{_COLORS.get(EntityType(t), _DEFAULT_COLOR) if t != "REDACTED" else _DEFAULT_COLOR}">'
         f'{html.escape(t)} · {n}</span>'
         for t, n in sorted(counts.items())
     )
 
-    # Full sanitisation (with propagation + leak scan) for an accurate outbound
-    # preview, a copy button, and the residual re-identification-risk advisory.
-    result = sanitize(text, policy, use_spacy=use_spacy)
-    sanitized = result.sanitized_text
     risk = assess(sanitized)
     leak_clean = result.leak_report.clean if result.leak_report else True
     risk_class = {RiskLevel.NONE: "ok", RiskLevel.LOW: "low",
@@ -146,7 +135,7 @@ _TEMPLATE = """<!doctype html>
   body.reveal .pii .mask {{ display: none; }}
   body.reveal .pii .orig {{ display: inline; }}
   .pii:hover::after, .pii:focus::after {{
-     content: attr(data-type) " → " attr(data-token) "  (" attr(data-conf) ")";
+     content: attr(data-type) " → " attr(data-token);
      position: absolute; left: 0; top: 1.7em; z-index: 5; white-space: nowrap;
      background: #111; color: #fff; font-size: 12px; padding: 4px 8px;
      border-radius: 6px; box-shadow: 0 2px 8px #0004; }}
