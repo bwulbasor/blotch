@@ -82,12 +82,35 @@ def _spacy_detect(text: str):  # pragma: no cover - exercised only when spaCy pr
         "FAC": EntityType.LOCATION,
     }
     spans: list[Span] = []
-    for ent in nlp(text).ents:
-        etype = label_map.get(ent.label_)
-        if etype is None:
-            continue
-        spans.append(Span(ent.start_char, ent.end_char, etype, ent.text, 0.85, "spacy"))
+    # spaCy raises over nlp.max_length (default 1M chars) as a memory guard, so
+    # process large documents in offset-adjusted chunks split on line boundaries.
+    limit = max(1, int(getattr(nlp, "max_length", 1_000_000) * 0.9))
+    for base, chunk in _chunk_on_lines(text, limit):
+        for ent in nlp(chunk).ents:
+            etype = label_map.get(ent.label_)
+            if etype is None:
+                continue
+            spans.append(Span(base + ent.start_char, base + ent.end_char,
+                              etype, ent.text, 0.85, "spacy"))
     return spans
+
+
+def _chunk_on_lines(text: str, limit: int):
+    """Yield ``(offset, chunk)`` pieces of ``text`` each <= ``limit`` chars, split
+    at newlines so an entity is never cut across a chunk boundary."""
+    if len(text) <= limit:
+        yield 0, text
+        return
+    pos = 0
+    n = len(text)
+    while pos < n:
+        end = min(pos + limit, n)
+        if end < n:
+            nl = text.rfind("\n", pos, end)
+            if nl > pos:
+                end = nl + 1
+        yield pos, text[pos:end]
+        pos = end
 
 
 def _is_sentence_initial(text: str, start: int) -> bool:
