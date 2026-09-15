@@ -96,7 +96,8 @@ def evaluate(split: str = "test", use_spacy: bool = False, limit: int | None = N
         print(f"\nsample MISSED DIRECT identifiers ({len(missed_direct)} shown):")
         for t, v in missed_direct[:30]:
             print(f"  {t:<10} {v!r}")
-    return rec("DIRECT")
+    return {"direct_recall": rec("DIRECT"), "quasi_recall": rec("QUASI"),
+            "precision": prec}
 
 
 def main() -> int:

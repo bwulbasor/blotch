@@ -42,10 +42,16 @@ def evaluate(use_spacy: bool = False, limit: int | None = None):
         rows = rows[:limit]
     tot = defaultdict(int)
     cov = defaultdict(int)
+    pred_total = pred_hit = 0
 
     for row in rows:
         text = row["source_text"]
         preds = [(p.start, p.end) for p in resolve_overlaps(detect_all(text, use_spacy=use_spacy))]
+        gold = [(m["start"], m["end"]) for m in row["privacy_mask"]]
+        for ps, pe in preds:
+            pred_total += 1
+            if any(gs < pe and ps < ge for gs, ge in gold):
+                pred_hit += 1
         for m in row["privacy_mask"]:
             s, e, label = m["start"], m["end"], m["label"]
             tot[label] += 1
@@ -60,11 +66,13 @@ def evaluate(use_spacy: bool = False, limit: int | None = None):
     for l in sorted(tot, key=lambda x: -tot[x]):
         if l in TARGETED and tot[l] >= 5:
             print(f"  {l:<20} {cov[l]/tot[l]:6.1%}  ({cov[l]}/{tot[l]})")
-    print("\nnot targeted (out of scope / quasi - shown for coverage, not scored):")
+    prec = pred_hit / pred_total if pred_total else 1.0
+    print(f"\nprecision~ : {prec:.1%}  ({pred_hit}/{pred_total} predictions overlap a gold span)")
+    print("not targeted (out of scope / quasi - shown for coverage, not scored):")
     for l in sorted(tot, key=lambda x: -tot[x]):
         if l not in TARGETED and tot[l] >= 20:
             print(f"  {l:<20} {cov[l]/tot[l]:6.1%}  ({cov[l]}/{tot[l]})")
-    return tgt_cov / tgt_tot if tgt_tot else 1.0
+    return {"targeted_recall": tgt_cov / tgt_tot if tgt_tot else 1.0, "precision": prec}
 
 
 def main() -> int:

@@ -16,5 +16,10 @@ from benchmarks.ai4privacy_eval import evaluate
 
 
 def test_ai4privacy_targeted_recall_floor():
-    recall = evaluate(use_spacy=False)
-    assert recall >= 0.88, f"targeted recall regressed to {recall:.1%}"
+    r = evaluate(use_spacy=False)
+    assert r["targeted_recall"] >= 0.90, f"recall regressed to {r['targeted_recall']:.1%}"
+
+
+def test_ai4privacy_precision_floor():
+    r = evaluate(use_spacy=False)
+    assert r["precision"] >= 0.80, f"precision regressed to {r['precision']:.1%}"

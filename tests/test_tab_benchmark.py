@@ -24,5 +24,11 @@ from benchmarks.tab_eval import evaluate
 
 def test_tab_direct_recall_floor():
     # a missed DIRECT identifier is a real leak; enforce >= 99% on real documents
-    direct_recall = evaluate("test", use_spacy=False)
-    assert direct_recall >= 0.99, f"DIRECT recall regressed to {direct_recall:.1%}"
+    r = evaluate("test", use_spacy=False)
+    assert r["direct_recall"] >= 0.99, f"DIRECT recall regressed to {r['direct_recall']:.1%}"
+
+
+def test_tab_precision_floor():
+    # guard against over-redaction regressions on real documents
+    r = evaluate("test", use_spacy=False)
+    assert r["precision"] >= 0.90, f"precision regressed to {r['precision']:.1%}"
