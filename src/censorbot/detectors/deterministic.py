@@ -78,6 +78,13 @@ _CASE_NUM = re.compile(r"\b(?:AZ[ \t]+)?\d{1,4}[ \t]+[A-Z][a-z]?[ \t]+\d{1,4}(?:
 # Slash reference / application numbers ("36110/97", "5136/11") - court case and
 # file references. First group >=3 digits avoids fractions/ratios like "3/4".
 _REF_NUM = re.compile(r"\b\d{3,6}/\d{2,4}\b")
+# Person referred to by initials ("J.H.", "A.B.C.") - common in legal/medical
+# anonymisation. A small stoplist keeps out non-name abbreviations.
+_INITIALS = re.compile(r"\b(?:[A-Z]\.){2,3}")
+_INITIALS_STOP = {
+    "U.S.", "U.K.", "U.N.", "E.U.", "A.M.", "P.M.", "B.C.", "A.D.", "I.E.",
+    "E.G.", "N.B.", "P.S.", "U.S.A.", "D.C.", "A.K.A.", "E.T.C.",
+}
 # Explicitly-labelled identifiers: "Patient No: 48392017", "Case AZ 17 C 391/26".
 _LABELLED = re.compile(
     r"\b(?P<label>patient|case|file|account|acct|reference|ref|invoice|policy|"
@@ -160,6 +167,10 @@ def detect(text: str) -> list[Span]:
     spans += _yield(_COORD, text, EntityType.COORDINATES, "coord", 0.8)
     spans += _yield(_CASE_NUM, text, EntityType.CASE_ID, "case_num", 0.8)
     spans += _yield(_REF_NUM, text, EntityType.CASE_ID, "ref_num", 0.7)
+    for m in _INITIALS.finditer(text):
+        if m.group(0).upper() not in _INITIALS_STOP:
+            spans.append(Span(m.start(), m.end(), EntityType.PERSON, m.group(0),
+                              0.55, "initials"))
     spans += _yield(_DATE, text, EntityType.DATE, "date", 0.7)
 
     # Validated detectors: only emit on checksum pass (high precision).

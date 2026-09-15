@@ -251,6 +251,33 @@ passport / licence) · Patient ID · Case/reference ID · Account ID.
 
 ## Evaluation
 
+### Real-world benchmark (Text Anonymization Benchmark)
+
+The honest measure is on **real documents with gold human annotations**, not our
+own synthetic data. `benchmarks/tab_eval.py` runs censorbot against
+[TAB](https://github.com/NorskRegnesentral/text-anonymization-benchmark) — 1,268
+real European Court of Human Rights judgments, each span labelled DIRECT / QUASI.
+The headline metric is **DIRECT recall** (a missed direct identifier is a leak):
+
+| Split | DIRECT recall | PERSON | CODE (case refs) | QUASI recall |
+|------|---------------|--------|------------------|--------------|
+| test | **100%** (374/374) | 100% | 100% | 82% |
+| dev  | **100%** (391/391) | 100% | 100% | 84% |
+
+Getting here was the point of the exercise: the first run scored only **62%**
+DIRECT recall — all case/application numbers (`36110/97`) were missed — which the
+synthetic set had hidden. Quasi-identifiers (bare years, durations, demographics,
+quantities) are partially caught by design; exhaustively redacting them destroys
+utility, so they are surfaced by the re-id-risk advisory instead. Reproduce:
+
+```bash
+mkdir -p benchmarks/data && curl -Lo benchmarks/data/echr_test.json \
+  https://raw.githubusercontent.com/NorskRegnesentral/text-anonymization-benchmark/master/echr_test.json
+python -m benchmarks.tab_eval --split test
+```
+
+### Synthetic + wild
+
 The `evaluation/` subsystem measures the engine on hard inputs:
 
 ```bash
