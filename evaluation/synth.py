@@ -168,6 +168,9 @@ def finance_doc(rng: random.Random) -> LabeledDoc:
     b.lit("Account: ").ent(EntityType.ACCOUNT_ID, f"ACC-{rng.randint(100000,999999)}").lit("\n")
     b.lit("Card on file: ").ent(EntityType.CREDIT_CARD, rng.choice(_CARDS)).lit("\n")
     b.lit("IBAN: ").ent(EntityType.IBAN, rng.choice(_IBANS)).lit("\n")
+    b.lit("Wallet: ").ent(EntityType.CRYPTO,
+                          "0x" + "".join(rng.choice("0123456789abcdef") for _ in range(40)))
+    b.lit("\n")
     # hard: an amount that superficially resembles a phone/number - NOT labelled
     b.lit(f"Amount due: EUR {rng.randint(1000,9999)},{rng.randint(100,999)}\n")
     b.lit("Due ").ent(EntityType.DATE, rng.choice(_DATE_FORMS)).lit(".\n")

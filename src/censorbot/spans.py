@@ -36,6 +36,7 @@ class EntityType(str, Enum):
     ACCOUNT_ID = "ACCOUNT_ID"
     MAC = "MAC"
     COORDINATES = "COORDINATES"
+    CRYPTO = "CRYPTO"
 
     def __str__(self) -> str:  # pragma: no cover - trivial
         return self.value

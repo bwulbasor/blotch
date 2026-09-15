@@ -63,6 +63,14 @@ def test_mac_and_coordinates_and_ids():
     assert EntityType.GOV_ID in _types("driver licence AB123456")
 
 
+def test_crypto_wallets():
+    assert EntityType.CRYPTO in _types(
+        "send to 0x52908400098527886E0F7030069857D2E4169EE7")
+    assert EntityType.CRYPTO in _types("btc 1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2")
+    # short/partial hex is not a wallet
+    assert EntityType.CRYPTO not in _types("value 0x1234 only")
+
+
 def test_mac_not_confused_with_ipv6():
     spans = deterministic.detect("mac 01:23:45:67:89:ab here")
     macs = [s for s in spans if s.entity_type == EntityType.MAC]

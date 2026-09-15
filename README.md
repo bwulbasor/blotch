@@ -230,8 +230,8 @@ ingest → detect (Layer A regex+checksum, Layer B NER) → resolve overlaps
 
 Person · Email · Phone · Address (street + UK postcode) · Date/DOB ·
 Organization · Location (gazetteer) · IBAN (mod-97) · Credit card (Luhn) · IP ·
-MAC · Geo-coordinates · URL · Government ID (incl. passport / licence) ·
-Patient ID · Case/reference ID · Account ID.
+MAC · Geo-coordinates · Crypto wallet (ETH/BTC) · URL · Government ID (incl.
+passport / licence) · Patient ID · Case/reference ID · Account ID.
 
 ## Evaluation
 
@@ -247,7 +247,7 @@ python -m evaluation.run_wild      # run over real docs: throughput, crashes, le
   bank — names that are common words, Unicode/apostrophe/hyphen names,
   international phones, multi-country checksum-valid IBANs, ambiguous numbers,
   court case numbers, and coreference. Current result (heuristic NER): **100%
-  coverage recall, 0% leak, 100% precision, 100% type-accuracy** across 16 entity
+  coverage recall, 0% leak, 100% precision, 100% type-accuracy** across 17 entity
   types (gates CI).
 * **Wild corpus** (`fetch_corpus.py`, gitignored) pulls public-domain literature
   and public-figure/reference Wikipedia articles. On ~890K chars: **0 crashes,

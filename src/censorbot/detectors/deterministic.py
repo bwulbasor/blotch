@@ -54,6 +54,10 @@ _STREET_DE = re.compile(
 _UK_POSTCODE = re.compile(r"\b[A-Z]{1,2}\d[A-Z\d]?\s+\d[A-Z]{2}\b")
 # MAC address (colon or hyphen separated).
 _MAC = re.compile(r"\b(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b")
+# Crypto wallet addresses. ETH: 0x + 40 hex (very distinctive). BTC: base58
+# (starts 1/3) or bech32 (bc1), lengths that make accidental matches unlikely.
+_ETH = re.compile(r"\b0x[a-fA-F0-9]{40}\b")
+_BTC = re.compile(r"\b(?:bc1[a-z0-9]{25,62}|[13][a-km-zA-HJ-NP-Z1-9]{25,34})\b")
 # Decimal-degree geo coordinates (>=3 decimals each, to avoid version numbers).
 _COORD = re.compile(r"[-+]?\d{1,2}\.\d{3,}\s*,\s*[-+]?\d{1,3}\.\d{3,}")
 # Court / reference numbers like "AZ 73 C 226", "17 C 391/26", "5 Ob 12/25":
@@ -129,6 +133,8 @@ def detect(text: str) -> list[Span]:
     spans += _yield(_STREET_DE, text, EntityType.ADDRESS, "street_de", 0.85)
     spans += _yield(_UK_POSTCODE, text, EntityType.ADDRESS, "uk_postcode", 0.85)
     spans += _yield(_MAC, text, EntityType.MAC, "mac", 0.95)
+    spans += _yield(_ETH, text, EntityType.CRYPTO, "eth", 0.97)
+    spans += _yield(_BTC, text, EntityType.CRYPTO, "btc", 0.9)
     spans += _yield(_COORD, text, EntityType.COORDINATES, "coord", 0.8)
     spans += _yield(_CASE_NUM, text, EntityType.CASE_ID, "case_num", 0.8)
     spans += _yield(_DATE, text, EntityType.DATE, "date", 0.7)
