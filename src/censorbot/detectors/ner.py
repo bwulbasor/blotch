@@ -306,6 +306,10 @@ def _heuristic_detect(text: str) -> list[Span]:
             i = j
             continue
 
+        # NB: the case-consistency signal is applied only to LONE words below, not
+        # to multi-word runs - a multi-word name of common words ("May Rich") would
+        # otherwise be dropped, which is a leak.
+
         # ORG needs a suffix word AND a distinguishing word that is neither a
         # stopword nor a suffix - "Vienna General Hospital" is an org, but "Court",
         # "The Court" and "European Court" (only stopwords + a suffix) are not.
