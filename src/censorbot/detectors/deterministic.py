@@ -178,10 +178,16 @@ def detect(text: str) -> list[Span]:
         if iban_valid(m.group(0)):
             spans.append(Span(m.start(), m.end(), EntityType.IBAN, m.group(0), 0.99, "iban"))
     for m in _CARD.finditer(text):
+        # Luhn-valid -> high confidence. A card-shaped number that fails Luhn is
+        # still emitted at lower confidence: for a privacy tool a 13-19 digit
+        # card-like number should be hidden even if the checksum fails (a typo, a
+        # test/synthetic number, or a genuinely mistyped real card).
         if luhn_valid(m.group(0)):
-            spans.append(
-                Span(m.start(), m.end(), EntityType.CREDIT_CARD, m.group(0), 0.97, "card_luhn")
-            )
+            spans.append(Span(m.start(), m.end(), EntityType.CREDIT_CARD,
+                              m.group(0), 0.97, "card_luhn"))
+        else:
+            spans.append(Span(m.start(), m.end(), EntityType.CREDIT_CARD,
+                              m.group(0), 0.6, "card_format"))
 
     # Phones: skip anything already claimed by a validated card/IBAN region later
     # via overlap resolution; emit as medium confidence.
