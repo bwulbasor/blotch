@@ -95,6 +95,16 @@ def test_short_month_date_not_case_id():
     assert EntityType.CASE_ID not in types
 
 
+def test_name_particles_kept_whole():
+    from censorbot.detectors import ner
+    def persons(t):
+        return {s.value for s in ner.detect(t, use_spacy=False)
+                if s.entity_type == EntityType.PERSON}
+    assert "Ludwig van Beethoven" in persons("Ludwig van Beethoven composed.")
+    assert "Charles de Gaulle" in persons("Charles de Gaulle led France.")
+    assert "Vincent van der Berg" in persons("Vincent van der Berg arrived.")
+
+
 def test_city_typed_as_location_not_person():
     from censorbot import get_policy, sanitize
     from censorbot.tokens import find_tokens

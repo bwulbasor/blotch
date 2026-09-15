@@ -25,6 +25,13 @@ _ORG_SUFFIX_WORDS = {
 # for accented and non-Latin letters that an ASCII char class ([A-Z]) misses.
 _WORD = re.compile(r"[^\W\d_][^\W\d_'’\-]*", re.UNICODE)
 
+# Lowercase nobiliary / patronymic particles that join two capitalised name words
+# ("Ludwig van Beethoven", "Charles de Gaulle", "Vincent van der Berg").
+_PARTICLES = {
+    "van", "von", "de", "da", "del", "della", "der", "den", "di", "du", "la",
+    "le", "ten", "ter", "zu", "dos", "das", "bin", "ibn", "al", "af",
+}
+
 # Sentence-leading capitalised words that are usually not names.
 _STOPWORDS = {
     "The", "A", "An", "This", "That", "These", "Those", "His", "Her", "Their",
@@ -124,11 +131,23 @@ def _heuristic_detect(text: str) -> list[Span]:
             prev_is_title = _is_title(prev.group(0))
             gap_ok = (all(c in " \t" for c in gap) and gap != "") or (
                 prev_is_title and re.fullmatch(r"\.?[ \t]+", gap) is not None)
-            if gap_ok and cur.group(0)[:1].isupper():
+            if not gap_ok:
+                break
+            if cur.group(0)[:1].isupper():
                 run.append(cur)
+                j += 1
+            elif (cur.group(0).lower() in _PARTICLES and j + 1 < n
+                  and (words[j + 1].group(0)[:1].isupper()
+                       or words[j + 1].group(0).lower() in _PARTICLES)
+                  and all(c in " \t" for c in text[cur.end():words[j + 1].start()])):
+                run.append(cur)  # bridge particle(s); the capitalised word joins next
                 j += 1
             else:
                 break
+        # drop any trailing particle left by the bridge (e.g. an over-run "van");
+        # j already points past it, so the outer loop still advances correctly.
+        while len(run) > 1 and run[-1].group(0).lower() in _PARTICLES:
+            run.pop()
         lowered = {r.group(0).lower().rstrip(".") for r in run}
         titled = _is_title(run[0].group(0))
 
