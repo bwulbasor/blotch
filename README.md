@@ -266,17 +266,21 @@ The headline metric is **DIRECT recall** (a missed direct identifier is a leak):
 
 A second benchmark, [AI4Privacy pii-masking](https://huggingface.co/datasets/ai4privacy/pii-masking-200k),
 covers the contact/financial PII that legal text lacks. On 2,000 English rows,
-recall on the types censorbot targets is **89.7% (heuristic) / 92.1% (spaCy
-union)**; the deterministic detectors are near-perfect — EMAIL, PHONE, IPv4/IPv6,
-URL, IBAN, MAC, Ethereum all ~100%:
+recall on the types censorbot targets is **93.5% (heuristic) / 93.9% (spaCy
+union)** — the heuristic nearly matches spaCy, which matters because spaCy needs
+Python ≤ 3.13. The deterministic detectors are near-perfect:
 
 | Detector | recall | | Detector | recall |
 |---|---|---|---|---|
-| EMAIL | 100% | | CREDIT_CARD | 100% |
-| PHONE | 100% | | IBAN | 100% |
-| IPv4 / IPv6 | 100% | | Ethereum / MAC | 100% |
-| SSN | 97% | | Bitcoin | 97% |
-| FIRSTNAME | 84% → **92%** (spaCy) | | LASTNAME | 94% → **100%** |
+| EMAIL / PHONE | 100% | | CREDIT_CARD | 100% |
+| IPv4 / IPv6 | 100% | | IBAN | 100% |
+| URL / MAC | 100% | | Ethereum | 100% |
+| FIRSTNAME | 99% | | LASTNAME | 99% |
+| STREET / CITY / STATE | 100% | | SSN / Bitcoin | 97% |
+
+The remaining gap is context-free bare numbers (a lone building number or ZIP,
+`MM/YY` dates) — catching those means redacting every short number, so they're
+left out by design (the street/city/state around them are already caught).
 
 Getting here was the point of the exercise: the first TAB run scored only **62%**
 DIRECT recall — all case/application numbers (`36110/97`) were missed — and
