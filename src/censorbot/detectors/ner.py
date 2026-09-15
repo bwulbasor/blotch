@@ -40,6 +40,29 @@ _STOPWORDS = {
     "But", "Or", "If", "When", "According", "Patient",
 }
 
+# Common words that open a sentence but are not names. A lone capitalised word at
+# a sentence start is dropped only if it is one of these; an *unknown*
+# capitalised word (likely a real name, e.g. "Kattie, ...") is kept - recall
+# first, and over-redacting an unusual sentence-opener is safe, missing a name is
+# not. spaCy handles this properly; this narrows the heuristic's blind spot.
+_SENTENCE_OPENERS = {w.lower() for w in _STOPWORDS} | {
+    "later", "however", "meanwhile", "therefore", "thus", "moreover",
+    "furthermore", "nevertheless", "nonetheless", "subsequently", "additionally",
+    "finally", "firstly", "secondly", "thirdly", "then", "now", "today",
+    "yesterday", "tomorrow", "here", "there", "while", "after", "before",
+    "during", "since", "although", "because", "unfortunately", "fortunately",
+    "consequently", "hence", "indeed", "instead", "overall", "similarly",
+    "specifically", "generally", "typically", "currently", "recently",
+    "previously", "initially", "eventually", "ultimately", "perhaps", "maybe",
+    "certainly", "clearly", "obviously", "actually", "basically", "essentially",
+    "regardless", "accordingly", "alternatively", "besides", "conversely",
+    "likewise", "namely", "notably", "otherwise", "presently", "undoubtedly",
+    "whereas", "yet", "so", "also", "please", "thanks", "thank", "dear", "hello",
+    "hi", "yes", "no", "ok", "okay", "well", "just", "only", "even", "still",
+    "again", "once", "whenever", "wherever", "whether", "unless", "until",
+    "meanwhile", "following", "regarding", "concerning", "per", "via", "note",
+}
+
 # Words that are never a person's name: function words and document-structure
 # / form-label words. A candidate run has these trimmed from its ends (so
 # "In Vienna" -> "Vienna", "DISCHARGE SUMMARY" -> dropped) without touching real
@@ -54,6 +77,10 @@ _NON_NAME = {w.lower() for w in _STOPWORDS} | {
     "contact", "billing", "emergency", "plaintiff", "defendant", "exhibit",
     "appendix", "memo", "report", "statement", "notice", "admitting",
     "regarding", "dob", "name", "address", "phone", "email", "questions", "due",
+    # form / field labels that open a line but are never names on their own
+    "home", "records", "property", "ship", "shipping", "wallet", "order",
+    "orders", "item", "items", "sender", "recipient", "account", "card", "cards",
+    "server", "host", "device", "user", "username", "password", "login",
     # currency codes and financial labels (all-caps codes, never names)
     "eur", "usd", "gbp", "chf", "jpy", "cad", "aud", "cny", "sek", "nok", "dkk",
     "pln", "czk", "huf", "iban", "bic", "swift", "vat", "pin", "otp", "url",
@@ -203,10 +230,12 @@ def _heuristic_detect(text: str) -> list[Span]:
         titled = _is_title(person[0].group(0))
         if not titled and len(content) == 1:
             first = content[0].group(0)
-            # A lone single letter is an initial, not a name; a stopword or a
-            # sentence-opening lone word is too weak to treat as a person.
+            # A lone single letter is an initial, not a name. A lone word is
+            # dropped only if it is a known sentence-opener / stopword; an unknown
+            # capitalised word is kept (a likely real name), even sentence-initial.
             if (len(first) < 2 or first in _STOPWORDS
-                    or _is_sentence_initial(text, content[0].start())):
+                    or (_is_sentence_initial(text, content[0].start())
+                        and first.lower() in _SENTENCE_OPENERS)):
                 i = j
                 continue
         if content:  # a bare title alone is not a person
