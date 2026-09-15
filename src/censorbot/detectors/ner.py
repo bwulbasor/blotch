@@ -130,6 +130,11 @@ _NON_NAME = {w.lower() for w in _STOPWORDS} | {
     "judgments", "judgements", "lawyer", "lawyers", "public", "common",
     "employment", "district", "districts",
     "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+    # month and weekday names (part of dates via the date detector; a lone one is
+    # not a person name)
+    "january", "february", "march", "april", "june", "july", "august",
+    "september", "october", "november", "december", "monday", "tuesday",
+    "wednesday", "thursday", "friday", "saturday", "sunday",
     # ORG-suffix words also drop when standing alone (a lone "Court"/"Bank" is
     # not an org and not a name)
     "hospital", "clinic", "university", "bank", "group", "foundation", "company",
@@ -265,6 +270,16 @@ def _heuristic_detect(text: str) -> list[Span]:
             run.pop()
         lowered = {r.group(0).lower().rstrip(".") for r in run}
         titled = _is_title(run[0].group(0))
+
+        # An entirely upper-case run is an acronym, protocol keyword, or heading
+        # (SMTP, RFC, MUST, STANDARDS TRACK), never a person's name in body text.
+        # This removes the dominant source of over-detection in technical
+        # documents. The deterministic detectors still catch any actual PII.
+        content_words = [r for r in run if not _is_title(r.group(0))]
+        if content_words and all(w.group(0).isupper() and len(w.group(0)) > 1
+                                 for w in content_words):
+            i = j
+            continue
 
         # ORG needs a suffix word AND a distinguishing word that is neither a
         # stopword nor a suffix - "Vienna General Hospital" is an org, but "Court",
