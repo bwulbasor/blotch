@@ -19,12 +19,15 @@ _ORG_SUFFIX = (
     r"University|Universität|Bank|Group|Holdings|Foundation|Court|Gericht)"
 )
 
-# A run of Capitalised words, optionally preceded by a title.
+# A run of Capitalised words, optionally preceded by a title. Uses horizontal
+# whitespace ([^\S\n]) between words so a name never spans a line break - that
+# previously merged "...Hospital\n\nMr" into one bogus PERSON.
+_H = r"[^\S\n]"
 _NAME_RUN = re.compile(
-    rf"(?:{_TITLES}\s+)?(?:[A-ZÄÖÜ][a-zäöüß'\-]+)(?:\s+[A-ZÄÖÜ][a-zäöüß'\-]+){{0,3}}"
+    rf"(?:{_TITLES}{_H}+)?(?:[A-ZÄÖÜ][a-zäöüß'\-]+)(?:{_H}+[A-ZÄÖÜ][a-zäöüß'\-]+){{0,3}}"
 )
 _ORG_RUN = re.compile(
-    rf"(?:[A-ZÄÖÜ][A-Za-zäöüß'\-]+\s+)*[A-ZÄÖÜ][A-Za-zäöüß'\-]+\s+{_ORG_SUFFIX}\b"
+    rf"(?:[A-ZÄÖÜ][A-Za-zäöüß'\-]+{_H}+)*[A-ZÄÖÜ][A-Za-zäöüß'\-]+{_H}+{_ORG_SUFFIX}\b"
 )
 
 # Sentence-leading capitalised words that are usually not names.

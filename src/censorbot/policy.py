@@ -56,13 +56,15 @@ PERSONAL = _mode(
 #: medical text dates are often identifying (admission/DOB), so tokenize them.
 MEDICAL = _mode(
     "medical",
-    _CONTACT + _IDS + [EntityType.DOB, EntityType.DATE, EntityType.ORGANIZATION],
+    _CONTACT + _IDS + [EntityType.DOB, EntityType.DATE, EntityType.ORGANIZATION,
+                       EntityType.IP, EntityType.URL],
 )
 
 #: Parties, witnesses, addresses, case numbers, org identifiers.
 LEGAL = _mode(
     "legal",
-    _CONTACT + _IDS + [EntityType.ORGANIZATION, EntityType.LOCATION, EntityType.DATE],
+    _CONTACT + _IDS + [EntityType.ORGANIZATION, EntityType.LOCATION, EntityType.DATE,
+                       EntityType.IP, EntityType.URL],
 )
 
 BUILTIN: dict[str, Policy] = {p.name: p for p in (MAXIMUM, PERSONAL, MEDICAL, LEGAL)}

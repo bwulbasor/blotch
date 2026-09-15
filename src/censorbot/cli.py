@@ -77,6 +77,17 @@ def _cmd_sanitize(args) -> int:
     return 0
 
 
+def _cmd_review(args) -> int:
+    from .review import render_review_html
+    text = _read(args.file)
+    policy = get_policy(args.policy)
+    html_out = render_review_html(text, policy, use_spacy=not args.no_spacy)
+    with open(args.out, "w", encoding="utf-8") as fh:
+        fh.write(html_out)
+    print(f"Review page -> {args.out}")
+    return 0
+
+
 def _cmd_serve(args) -> int:
     from .server import serve
     serve(host=args.host, port=args.port)
@@ -143,6 +154,12 @@ def build_parser() -> argparse.ArgumentParser:
     res.add_argument("--passphrase", help="passphrase if the vault is encrypted")
     res.add_argument("--out", help="write to a file instead of stdout")
     res.set_defaults(func=_cmd_restore)
+
+    rev = sub.add_parser("review", parents=[common],
+                         help="generate an HTML review preview of what will be hidden")
+    rev.add_argument("file")
+    rev.add_argument("--out", required=True, help="path for the HTML review page")
+    rev.set_defaults(func=_cmd_review)
 
     srv = sub.add_parser("serve", help="run the local gateway HTTP daemon")
     srv.add_argument("--host", default="127.0.0.1", help="bind address (loopback only)")

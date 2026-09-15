@@ -109,6 +109,9 @@ censorbot serve --port 8723
 
 # Benchmark detection / leak-rate / round-trip on the built-in fixtures
 censorbot benchmark --policy maximum
+
+# Generate the visual review preview (masked, click to inspect each entity)
+censorbot review examples/discharge_summary.txt --out review.html --policy medical
 ```
 
 `sanitize` refuses to write if the leak scan isn't clean (override with
@@ -202,8 +205,8 @@ reference ID · Account ID.
 - [x] Provider-agnostic `Gateway` (the external service is fully replaceable)
 - [x] `POST /sanitize|/restore|/inspect` local daemon (loopback, zero deps)
 - [x] Regenerated sanitised **TXT/DOCX/PDF** output, verified on read-back
+- [x] Visual review/preview UI (`censorbot review` → standalone HTML)
 - [ ] Layout/appearance-preserving output (same verification bar)
-- [ ] Visual review/preview UI
 - [ ] Semantic-preservation metric (needs a real model in the loop)
 - [ ] Domain entity packs; synthetic/generalised strategies
 - [ ] Re-identification-risk (quasi-identifier) flagging

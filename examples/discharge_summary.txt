@@ -1,0 +1,12 @@
+DISCHARGE SUMMARY
+
+Patient: Alejandro Martinez (DOB 12 April 1978)
+Patient number: 48392017
+Admitting hospital: Vienna General Hospital
+
+Mr. Martinez was admitted on 14 March 2026 and treated by Dr. Sabine Keller.
+Billing was sent to a.martinez@example.com and to IBAN GB82 WEST 1234 5698 7654 32.
+Emergency contact: Maria Gomez, +43 660 1234567.
+
+Legal note: regarding case AZ 17 C 391/26, Alejandro owes Maria EUR 4,000 and
+Maria owes Thomas Weber EUR 1,500. Server 192.168.10.5 holds the scanned records.
