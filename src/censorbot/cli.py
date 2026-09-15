@@ -136,6 +136,50 @@ def _cmd_review(args) -> int:
     return 0
 
 
+def _cmd_verify(args) -> int:
+    from collections import Counter
+
+    from .detectors import detect_all
+    from .leakscan import _present_as_token
+    from .reidrisk import assess
+    from .resolver import resolve
+    from .spans import resolve_overlaps
+    text = _read(args.file)
+
+    # Full, policy-agnostic audit: every detectable entity is potential PII.
+    from .tokens import TOKEN_RE
+    use_spacy = not getattr(args, "no_spacy", False)
+    token_spans = [(m.start(), m.end()) for m in TOKEN_RE.finditer(text)]
+
+    def _in_token(e) -> bool:
+        return any(ts <= m.start and m.end <= te
+                   for m in e.members for ts, te in token_spans)
+
+    entities = [e for e in resolve(resolve_overlaps(detect_all(text, use_spacy=use_spacy)))
+                if not _in_token(e)]
+    by_type: Counter[str] = Counter(e.entity_type.value for e in entities)
+
+    leaked: list[str] = []
+    if args.vault:
+        vault = Vault.load(args.vault, passphrase=args.passphrase)
+        leaked = [v for v in {x for x in vault.values() if len(x) >= 2}
+                  if _present_as_token(v, text)]
+
+    risk = assess(text)
+    clean = not entities and not leaked
+    if clean:
+        print("verify: CLEAN — no detectable PII or known vault values remain")
+    else:
+        print(f"verify: {len(entities)} detectable entity/entities remain", file=sys.stderr)
+        for t, n in sorted(by_type.items()):
+            print(f"    {t:<14} {n}", file=sys.stderr)
+        for v in leaked[:20]:
+            print(f"    KNOWN VALUE STILL PRESENT: {v!r}", file=sys.stderr)
+    if risk.level.value != "none":
+        print(f"re-id risk: {risk.summary()}")
+    return 0 if clean else 2
+
+
 def _cmd_batch(args) -> int:
     from .docwriter import VerificationError, write_document
     from .ingest import SUPPORTED
@@ -270,6 +314,13 @@ def build_parser() -> argparse.ArgumentParser:
     rev.add_argument("file")
     rev.add_argument("--out", required=True, help="path for the HTML review page")
     rev.set_defaults(func=_cmd_review)
+
+    ver = sub.add_parser("verify",
+                         help="audit a document for residual PII (optionally vs a vault)")
+    ver.add_argument("file")
+    ver.add_argument("--vault", help="also check no original vault value remains")
+    ver.add_argument("--passphrase", help="passphrase if the vault is encrypted")
+    ver.set_defaults(func=_cmd_verify)
 
     bat = sub.add_parser("batch", parents=[common],
                          help="sanitise every supported file in a directory tree")

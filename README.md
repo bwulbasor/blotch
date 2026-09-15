@@ -123,6 +123,9 @@ censorbot risk examples/discharge_summary.txt --policy medical
 # Sanitise a whole directory tree (one encrypted vault per file)
 censorbot batch ./docs --outdir ./safe --vaultdir ./vaults \
     --policy legal --passphrase "…"
+
+# Audit a document for residual PII (optionally against its vault)
+censorbot verify ./safe/report.txt --vault ./vaults/report.cbv --passphrase "…"
 ```
 
 `sanitize` refuses to write if the leak scan isn't clean (override with

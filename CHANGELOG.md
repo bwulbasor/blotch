@@ -41,8 +41,28 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 ### Detection coverage
 - Added **postal-address detection**: English street addresses (number + name +
   street type), German/Austrian compound streets ("Hauptstraße 12"), and UK
-  postcodes. Conservative patterns keep precision (plain numbers and
-  "Section 5 Way" do not match).
+  postcodes. Conservative patterns keep precision.
+- Added **MAC addresses**, **geo-coordinates**, **crypto wallets** (ETH/BTC),
+  **passport / driver-licence** numbers, and a **place-name gazetteer** for
+  LOCATION typing. 18 entity types total.
+- Heuristic NER: trims document-structure / currency words to cut prose
+  over-redaction (precision 88% → 100% on the synthetic set); keeps European
+  **name particles** ("van", "de", "von") within a name run.
+- Phone detector ignores ISBNs and year ranges.
+
+### Performance
+- Fixed the O(n²) paths (overlap resolution, resolver name matching, leak-scan,
+  edit application). Throughput ~40k → ~360k chars/sec on the real corpus;
+  multi-MB documents scale linearly (5 MB ≈ 17s).
+
+### CLI
+- `inspect --json`, `batch` (directory sanitisation), and `verify` (audit a
+  document for residual PII, optionally against its vault).
+
+### Correctness
+- Occurrence propagation now covers REDACT as well as TOKENIZE.
+- Review page escapes embedded text (`<`) so undetected content can't break out
+  of the script block.
 
 ### Notes
 - Byte-exact round-trip holds when a token's occurrences share a surface form;
