@@ -169,13 +169,22 @@ if res.response_had_anomalies:
 
 ## Local daemon
 
-`censorbot serve` runs a stdlib-only HTTP gateway on `127.0.0.1`:
+`censorbot serve` runs a stdlib-only HTTP gateway on `127.0.0.1` with a
+self-service **web UI** at `/` (paste a document, pick a policy, get the
+sanitized text) plus a JSON API:
 
 ```
+GET  /                                web UI
 POST /inspect   {"text","policy"}   -> detected entities
 POST /sanitize  {"text","policy"}   -> {sanitized, vault, leak}
 POST /restore   {"text","vault"}    -> {restored, invented, dropped}
 GET  /policies   GET /health
+```
+
+Or run it in a container (publish to loopback only — it returns vault material):
+
+```bash
+docker build -t censorbot . && docker run --rm -p 127.0.0.1:8723:8723 censorbot
 ```
 
 The vault travels in the `/sanitize` response and back to `/restore`; the server

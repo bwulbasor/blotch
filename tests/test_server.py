@@ -39,6 +39,15 @@ def test_health_and_policies(base_url):
     assert "medical" in _get(base_url + "/policies")["policies"]
 
 
+def test_web_ui_served(base_url):
+    import urllib.request
+    with urllib.request.urlopen(base_url + "/", timeout=5) as resp:
+        assert resp.headers.get_content_type() == "text/html"
+        html = resp.read().decode()
+    assert "<title>censorbot</title>" in html
+    assert "/sanitize" in html  # the UI calls the JSON API
+
+
 def test_sanitize_then_restore_over_http(base_url):
     text = "Alejandro Martinez, patient 48392017, a.martinez@example.com."
     san = _post(base_url + "/sanitize", {"text": text, "policy": "medical", "use_spacy": False})

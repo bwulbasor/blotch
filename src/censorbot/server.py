@@ -56,8 +56,18 @@ class _Handler(BaseHTTPRequestHandler):
         pass
 
     # -- routes ------------------------------------------------------------
+    def _send_html(self, code: int, html: str) -> None:
+        body = html.encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def do_GET(self) -> None:
-        if self.path == "/health":
+        if self.path in ("/", "/index.html"):
+            self._send_html(200, _UI_HTML)
+        elif self.path == "/health":
             self._send(200, {"ok": True})
         elif self.path == "/policies":
             self._send(200, {"policies": sorted(BUILTIN)})
@@ -135,12 +145,70 @@ def _restore(data: dict) -> dict:
     }
 
 
+_UI_HTML = """<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>censorbot</title><style>
+ :root{color-scheme:light dark}
+ body{font:15px/1.5 system-ui,sans-serif;max-width:900px;margin:0 auto;padding:20px;
+   background:#fafafa;color:#1a1a1a}
+ @media(prefers-color-scheme:dark){body{background:#16181c;color:#e8e8e8}
+   textarea,select,pre{background:#1f2228!important;color:#e8e8e8;border-color:#333!important}}
+ h1{font-size:20px} .sub{color:#888;margin-top:-8px}
+ textarea{width:100%;min-height:160px;font:13px/1.5 ui-monospace,monospace;padding:10px;
+   border:1px solid #ccc;border-radius:8px;box-sizing:border-box}
+ .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0}
+ button{font:inherit;padding:8px 14px;border-radius:8px;border:1px solid #0003;cursor:pointer;background:#f0f0f0}
+ button.primary{background:#218380;color:#fff;border-color:#218380}
+ select{padding:7px;border-radius:8px}
+ pre{white-space:pre-wrap;word-wrap:break-word;background:#fff;border:1px solid #0001;
+   border-radius:8px;padding:14px}
+ .ok{color:#1e7d33;font-weight:700} .bad{color:#9a031e;font-weight:700}
+ .chip{display:inline-block;font-size:12px;padding:2px 8px;border-radius:20px;background:#218380;color:#fff;margin:2px}
+</style></head><body>
+<h1>censorbot</h1>
+<p class="sub">Local privacy gateway. Text is processed on this machine; only the
+sanitized version is shown for you to copy. Nothing is sent anywhere.</p>
+<textarea id="in" placeholder="Paste a document here..."></textarea>
+<div class="row">
+ <label>Policy <select id="policy"></select></label>
+ <button class="primary" id="san">Sanitize</button>
+ <button id="insp">Inspect</button>
+ <span id="status"></span>
+</div>
+<div id="out"></div>
+<script>
+ const $=s=>document.querySelector(s);
+ fetch('/policies').then(r=>r.json()).then(d=>{
+   $('#policy').innerHTML=d.policies.map(p=>`<option${p=='personal'?' selected':''}>${p}</option>`).join('');
+ });
+ async function post(path,body){const r=await fetch(path,{method:'POST',
+   headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});return r.json();}
+ function esc(s){return s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+ $('#san').onclick=async()=>{
+   $('#status').textContent='working...';
+   const d=await post('/sanitize',{text:$('#in').value,policy:$('#policy').value,use_spacy:false});
+   $('#status').innerHTML=d.leak.clean?'<span class="ok">leak scan: clean</span>':'<span class="bad">'+esc(d.leak.summary)+'</span>';
+   $('#out').innerHTML='<h3>Sanitized ('+d.counts.tokenized+' tokenized)</h3>'+
+     '<pre id="s">'+esc(d.sanitized)+'</pre><button id="cp">Copy</button>';
+   $('#cp').onclick=async()=>{try{await navigator.clipboard.writeText(d.sanitized);
+     $('#cp').textContent='Copied \\u2713';}catch(e){}};
+ };
+ $('#insp').onclick=async()=>{
+   $('#status').textContent='working...';
+   const d=await post('/inspect',{text:$('#in').value,policy:$('#policy').value,use_spacy:false});
+   $('#status').textContent=d.count+' entities';
+   $('#out').innerHTML='<h3>Detected entities</h3>'+
+     (d.entities.map(e=>`<span class="chip">${esc(e.type)}: ${esc(e.value)}</span>`).join('')||'<em>none</em>');
+ };
+</script></body></html>"""
+
+
 def serve(host: str = "127.0.0.1", port: int = 8723) -> None:
     """Run the daemon until interrupted. Loopback-only by default."""
 
     httpd = ThreadingHTTPServer((host, port), _Handler)
-    print(f"censorbot gateway listening on http://{host}:{port} (local only)")
-    print("endpoints: POST /inspect /sanitize /restore ; GET /policies /health")
+    print(f"censorbot gateway on http://{host}:{port} (local only) - open it in a browser")
+    print("endpoints: GET / (web UI) /policies /health ; POST /inspect /sanitize /restore")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:  # pragma: no cover
