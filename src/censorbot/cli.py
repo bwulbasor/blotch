@@ -44,6 +44,24 @@ def _cmd_inspect(args) -> int:
               f"conf={conf:.2f}  {ent.canonical!r}")
     if result.leak_report and not result.leak_report.clean:
         print(f"\n[leak-scan] {result.leak_report.summary()}", file=sys.stderr)
+    from .reidrisk import assess
+    risk = assess(result.sanitized_text)
+    if risk.level.value != "none":
+        print(f"\n[re-id risk] {risk.summary()}", file=sys.stderr)
+        for f in risk.findings:
+            print(f"    {f.category:<18} {f.text!r}", file=sys.stderr)
+    return 0
+
+
+def _cmd_risk(args) -> int:
+    from .reidrisk import assess
+    text = _read(args.file)
+    # assess the sanitized version - what would actually leave the device
+    result = sanitize(text, get_policy(args.policy), use_spacy=not args.no_spacy)
+    risk = assess(result.sanitized_text)
+    print(risk.summary())
+    for f in risk.findings:
+        print(f"  {f.category:<18} {f.text!r}")
     return 0
 
 
@@ -169,6 +187,11 @@ def build_parser() -> argparse.ArgumentParser:
     bench = sub.add_parser("benchmark", parents=[common],
                            help="run the built-in detection/round-trip benchmark")
     bench.set_defaults(func=_cmd_benchmark)
+
+    risk = sub.add_parser("risk", parents=[common],
+                          help="assess residual re-identification risk (advisory)")
+    risk.add_argument("file")
+    risk.set_defaults(func=_cmd_risk)
     return p
 
 

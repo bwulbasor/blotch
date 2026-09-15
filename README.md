@@ -1,5 +1,7 @@
 # censorbot
 
+[![CI](https://github.com/bwulbasor/censorbot/actions/workflows/ci.yml/badge.svg)](https://github.com/bwulbasor/censorbot/actions/workflows/ci.yml)
+
 **A local privacy gateway for documents.** censorbot puts a reversible
 pseudonymisation layer between your sensitive information and an external
 AI/service. The identifying data — and the token→original mapping that reverses
@@ -61,9 +63,11 @@ implementation:
    across tokens, both corrupt meaning and rehydration. We link only on
    high-confidence evidence; distinct entities always get distinct tokens, so
    relationship graphs survive (`A owes B, B owes C` stays intact).
-7. **Quasi-identifier re-identification is real but not solved here.** Removing a
-   name while leaving "the 47-year-old CEO who survived the 2024 accident" is a
-   leak. That layer is on the roadmap as an honest *risk flag*, not a guarantee.
+7. **Quasi-identifier re-identification is real but not fully solvable here.**
+   Removing a name while leaving "the 47-year-old CEO who survived the 2024
+   accident" is still a leak. censorbot ships this as an honest **advisory**
+   (`censorbot risk`, [reidrisk.py](src/censorbot/reidrisk.py)) that flags
+   residual quasi-identifiers and a qualitative level — never a claim of safety.
 
 ## Token format
 
@@ -112,6 +116,9 @@ censorbot benchmark --policy maximum
 
 # Generate the visual review preview (masked, click to inspect each entity)
 censorbot review examples/discharge_summary.txt --out review.html --policy medical
+
+# Advisory: residual re-identification risk after names/IDs are removed
+censorbot risk examples/discharge_summary.txt --policy medical
 ```
 
 `sanitize` refuses to write if the leak scan isn't clean (override with
@@ -206,10 +213,11 @@ reference ID · Account ID.
 - [x] `POST /sanitize|/restore|/inspect` local daemon (loopback, zero deps)
 - [x] Regenerated sanitised **TXT/DOCX/PDF** output, verified on read-back
 - [x] Visual review/preview UI (`censorbot review` → standalone HTML)
+- [x] Re-identification-risk (quasi-identifier) advisory (`censorbot risk`)
+- [x] CI (tests + leak benchmark gate on every push)
 - [ ] Layout/appearance-preserving output (same verification bar)
 - [ ] Semantic-preservation metric (needs a real model in the loop)
 - [ ] Domain entity packs; synthetic/generalised strategies
-- [ ] Re-identification-risk (quasi-identifier) flagging
 
 ## Design principle (non-negotiable)
 
