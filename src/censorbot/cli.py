@@ -40,6 +40,29 @@ def _cmd_inspect(args) -> int:
     text = _read(args.file)
     policy = _policy(args)
     result = sanitize(text, policy, use_spacy=not args.no_spacy)
+    from .tokens import make_token
+    if args.json:
+        import json
+        from .reidrisk import assess
+        risk = assess(result.sanitized_text)
+        payload = {
+            "policy": policy.name,
+            "count": result.entity_count(),
+            "entities": [
+                {"token": make_token(e.entity_type, e.index),
+                 "type": e.entity_type.value,
+                 "value": e.canonical,
+                 "confidence": round(max((s.confidence for s in e.members), default=0.0), 2),
+                 "occurrences": len(e.members)}
+                for e in sorted(result.entities, key=lambda e: (e.entity_type.value, e.index))
+            ],
+            "leak": {"clean": result.leak_report.clean if result.leak_report else True,
+                     "summary": result.leak_report.summary() if result.leak_report else ""},
+            "reid_risk": {"level": risk.level.value,
+                          "categories": sorted(risk.categories)},
+        }
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return 0
     print(f"Policy: {policy.name}")
     print(f"Detected {result.entity_count()} entity/entities "
           f"({result.num_tokenized} tokenized, {result.num_redacted} redacted)\n")
@@ -221,6 +244,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     ins = sub.add_parser("inspect", parents=[common], help="list detected entities")
     ins.add_argument("file")
+    ins.add_argument("--json", action="store_true", help="emit structured JSON")
     ins.set_defaults(func=_cmd_inspect)
 
     san = sub.add_parser("sanitize", parents=[common], help="pseudonymise a document")

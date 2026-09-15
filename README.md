@@ -276,6 +276,14 @@ is now a committed regression test.
 - [ ] Semantic-preservation metric (needs a real model in the loop)
 - [ ] Domain entity packs; synthetic/generalised strategies
 
+## Threat model
+
+What censorbot protects, against whom, and what it explicitly does **not**
+guarantee, is documented in [THREAT_MODEL.md](THREAT_MODEL.md). Short version: the
+external service and its response are untrusted and only ever see tokens; the
+vault is local and encrypted; detection is best-effort with a blocking leak-scan
+backstop; quasi-identifier anonymity is an advisory, not a guarantee.
+
 ## Design principle (non-negotiable)
 
 The original sensitive data, the mappings, the encryption keys, and the detection
