@@ -5,16 +5,17 @@
 """
 
 from ..spans import Span
-from . import deterministic, ner
+from . import deterministic, gazetteer, ner
 
 
 def detect_all(text: str, use_ner: bool = True, use_spacy: bool = True) -> list[Span]:
     """Run all detection layers and return the combined (unresolved) spans."""
 
     spans = deterministic.detect(text)
+    spans += gazetteer.detect(text)
     if use_ner:
         spans += ner.detect(text, use_spacy=use_spacy)
     return spans
 
 
-__all__ = ["deterministic", "ner", "detect_all", "Span"]
+__all__ = ["deterministic", "gazetteer", "ner", "detect_all", "Span"]

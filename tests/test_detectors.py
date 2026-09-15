@@ -45,3 +45,21 @@ def test_addresses():
 def test_address_no_false_positive_on_plain_numbers():
     assert EntityType.ADDRESS not in _types("I have 3 cats and 2 dogs")
     assert EntityType.ADDRESS not in _types("see Section 5 Way forward")
+
+
+def test_gazetteer_locations():
+    from censorbot.detectors import gazetteer
+    vals = {(s.entity_type, s.value) for s in gazetteer.detect(
+        "She moved from Vienna to New York, then to Japan.")}
+    assert (EntityType.LOCATION, "Vienna") in vals
+    assert (EntityType.LOCATION, "New York") in vals
+    assert (EntityType.LOCATION, "Japan") in vals
+
+
+def test_city_typed_as_location_not_person():
+    from censorbot import get_policy, sanitize
+    from censorbot.tokens import find_tokens
+    r = sanitize("The meeting is in Berlin next week.", get_policy("maximum"),
+                 use_spacy=False)
+    types = {t[1] for t in find_tokens(r.sanitized_text)}
+    assert "LOCATION" in types and "PERSON" not in types
