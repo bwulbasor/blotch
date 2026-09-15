@@ -97,6 +97,15 @@ def test_mac_not_confused_with_ipv6():
     assert macs
 
 
+def test_detectors_do_not_bridge_newlines():
+    # a footer year and the next line's section number must not merge into a phone
+    text = "page 5\n\nOctober 2008\n\n\n3.9.2 Section"
+    spans = deterministic.detect(text)
+    assert not any("\n" in s.value for s in spans)
+    # real phone on one line still works
+    assert EntityType.PHONE in _types("ring +43 660 1234567 today")
+
+
 def test_phone_ignores_isbn_and_year_range():
     assert EntityType.PHONE not in _types("ISBN 978-0-262-01202-7 in refs")
     assert EntityType.PHONE not in _types("active 2012-2013 period")

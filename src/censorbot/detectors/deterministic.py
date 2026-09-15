@@ -31,7 +31,9 @@ _IPV6 = re.compile(r"\b(?:[0-9A-Fa-f]{1,4}:){2,7}[0-9A-Fa-f]{1,4}\b")
 # catch both grouped ("+43 660 1234567") and contiguous ("06601234567") forms.
 # Precision is recovered later: dates, IBANs and cards have their own (higher
 # confidence, usually longer) spans and win overlap resolution.
-_PHONE = re.compile(r"(?<![\w.])\+?\d[\d\s().\-]{5,17}\d(?![\w])")
+# Horizontal whitespace only ([ \t], not \n): a phone number never spans a line
+# break, so this won't bridge a footer year into the next line's section number.
+_PHONE = re.compile(r"(?<![\w.])\+?\d[\d \t().\-]{5,17}\d(?![\w])")
 # Guards so bibliography noise isn't mistaken for phone numbers.
 _YEAR_RANGE = re.compile(r"^(?:19|20)\d{2}\s*[-–]\s*(?:19|20)\d{2}$")
 _IBAN = re.compile(r"\b[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]{1,4}){2,8}\b")
@@ -68,11 +70,11 @@ _MAC = re.compile(r"\b(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b")
 _ETH = re.compile(r"\b0x[a-fA-F0-9]{40}\b")
 _BTC = re.compile(r"\b(?:bc1[a-z0-9]{25,62}|[13][a-km-zA-HJ-NP-Z1-9]{25,34})\b")
 # Decimal-degree geo coordinates (>=3 decimals each, to avoid version numbers).
-_COORD = re.compile(r"[-+]?\d{1,2}\.\d{3,}\s*,\s*[-+]?\d{1,3}\.\d{3,}")
+_COORD = re.compile(r"[-+]?\d{1,2}\.\d{3,}[ \t]*,[ \t]*[-+]?\d{1,3}\.\d{3,}")
 # Court / reference numbers like "AZ 73 C 226", "17 C 391/26", "5 Ob 12/25":
 # number, short letter code, number, optional /year. Distinctive enough that a
 # bare digit-letter-digit run in prose rarely collides.
-_CASE_NUM = re.compile(r"\b(?:AZ\s+)?\d{1,4}\s+[A-Z][a-z]?\s+\d{1,4}(?:\s*/\s*\d{2,4})?\b")
+_CASE_NUM = re.compile(r"\b(?:AZ[ \t]+)?\d{1,4}[ \t]+[A-Z][a-z]?[ \t]+\d{1,4}(?:[ \t]*/[ \t]*\d{2,4})?\b")
 # Explicitly-labelled identifiers: "Patient No: 48392017", "Case AZ 17 C 391/26".
 _LABELLED = re.compile(
     r"\b(?P<label>patient|case|file|account|acct|reference|ref|invoice|policy|"

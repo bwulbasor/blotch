@@ -24,6 +24,7 @@ _ORG_SUFFIX_WORDS = {
 # apostrophe / hyphen). Uppercase is judged with str.isupper(), which is correct
 # for accented and non-Latin letters that an ASCII char class ([A-Z]) misses.
 _WORD = re.compile(r"[^\W\d_][^\W\d_'’\-]*", re.UNICODE)
+_MAX_NAME_GAP = 2  # max spaces/tabs between two words of one name run
 
 # Lowercase nobiliary / patronymic particles that join two capitalised name words
 # ("Ludwig van Beethoven", "Charles de Gaulle", "Vincent van der Berg").
@@ -129,8 +130,11 @@ def _heuristic_detect(text: str) -> list[Span]:
             prev, cur = run[-1], words[j]
             gap = text[prev.end():cur.start()]
             prev_is_title = _is_title(prev.group(0))
-            gap_ok = (all(c in " \t" for c in gap) and gap != "") or (
-                prev_is_title and re.fullmatch(r"\.?[ \t]+", gap) is not None)
+            # Words of a name are separated by a single space (rarely two), never
+            # a wide column gap - "SMTP          October" in a table of contents
+            # must NOT merge into one entity.
+            gap_ok = (0 < len(gap) <= _MAX_NAME_GAP and all(c in " \t" for c in gap)) or (
+                prev_is_title and re.fullmatch(r"\.?[ \t]{1,3}", gap) is not None)
             if not gap_ok:
                 break
             if cur.group(0)[:1].isupper():
@@ -139,6 +143,7 @@ def _heuristic_detect(text: str) -> list[Span]:
             elif (cur.group(0).lower() in _PARTICLES and j + 1 < n
                   and (words[j + 1].group(0)[:1].isupper()
                        or words[j + 1].group(0).lower() in _PARTICLES)
+                  and 0 < len(text[cur.end():words[j + 1].start()]) <= _MAX_NAME_GAP
                   and all(c in " \t" for c in text[cur.end():words[j + 1].start()])):
                 run.append(cur)  # bridge particle(s); the capitalised word joins next
                 j += 1
