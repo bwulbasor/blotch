@@ -112,12 +112,14 @@ _MONTHS = (
     "November December"
 ).split()
 _MONTH_RE = "|".join(_MONTHS + [m[:3] for m in _MONTHS])
+_ORD = r"(?:st|nd|rd|th)?"
 _DATE = re.compile(
     rf"\b(?:"
-    rf"\d{{4}}-\d{{2}}-\d{{2}}"
-    rf"|\d{{1,2}}[./]\d{{1,2}}[./]\d{{2,4}}"
-    rf"|\d{{1,2}}\s+(?:{_MONTH_RE})\.?\s+\d{{2,4}}"
-    rf"|(?:{_MONTH_RE})\.?\s+\d{{1,2}},?\s+\d{{2,4}}"
+    rf"\d{{4}}-\d{{2}}-\d{{2}}(?:[T ]\d{{2}}:\d{{2}}(?::\d{{2}})?)?"    # ISO (+ time)
+    rf"|\d{{4}}/\d{{1,2}}/\d{{1,2}}"                                    # 2026/03/14
+    rf"|\d{{1,2}}[./]\d{{1,2}}[./]\d{{2,4}}"                            # 14/03/2026, 14.3.26
+    rf"|\d{{1,2}}{_ORD}\s+(?:of\s+)?(?:{_MONTH_RE})\.?\s+\d{{2,4}}"     # 14th (of) March 2026
+    rf"|(?:{_MONTH_RE})\.?\s+\d{{1,2}}{_ORD},?\s+\d{{2,4}}"             # March 14th, 2026
     rf")\b",
     re.IGNORECASE,
 )

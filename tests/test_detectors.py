@@ -36,6 +36,12 @@ def test_dates_and_ip():
     assert EntityType.IP in _types("host 192.168.1.100 down")
 
 
+def test_extended_date_formats():
+    for s in ["stamp 2026-03-14T10:30:00 utc", "date 2026/03/14 ok",
+              "the 5th of January 2020", "March 14th, 2026 was", "14th March 2026"]:
+        assert EntityType.DATE in _types(s), s
+
+
 def test_addresses():
     assert EntityType.ADDRESS in _types("Home: 221 Baker Street, London")
     assert EntityType.ADDRESS in _types("lives at Hauptstraße 12 now")
