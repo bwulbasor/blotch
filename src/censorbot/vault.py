@@ -46,8 +46,11 @@ class Vault:
         self._by_token: dict[str, VaultEntry] = {}
 
     # -- population --------------------------------------------------------
-    def add_entity(self, entity: Entity, action: str) -> str:
-        token = make_token(entity.entity_type, entity.index)
+    def add_entity(self, entity: Entity, action: str, token: str | None = None) -> str:
+        # `token` lets a caller supply a cross-document token (see TokenRegistry);
+        # otherwise use the entity's per-document index.
+        if token is None:
+            token = make_token(entity.entity_type, entity.index)
         entry = self._by_token.get(token)
         occ = [(s.start, s.end) for s in entity.members]
         if entry is None:

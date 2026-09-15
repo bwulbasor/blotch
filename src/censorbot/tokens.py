@@ -45,6 +45,33 @@ def parse_token(token: str) -> tuple[str, int] | None:
     return m.group(1), int(m.group(2))
 
 
+class TokenRegistry:
+    """Assigns stable tokens by (type, value) across many documents.
+
+    Per document, tokens come from the resolver's per-document index. For a set of
+    *related* documents that should share pseudonyms (the same person → the same
+    token everywhere), pass one registry to every ``sanitize`` call: it maps a
+    normalised (type, value) to a token created once, with a per-type counter.
+
+    This is opt-in. The default (no registry) keeps tokens session/document-scoped
+    so unrelated documents can't be correlated through a shared mapping.
+    """
+
+    def __init__(self) -> None:
+        self._map: dict[tuple[str, str], str] = {}
+        self._counters: dict[str, int] = {}
+
+    def token_for(self, entity_type, value: str) -> str:
+        type_str = entity_type.value if hasattr(entity_type, "value") else str(entity_type)
+        key = (type_str, " ".join(value.strip().lower().split()))
+        tok = self._map.get(key)
+        if tok is None:
+            self._counters[type_str] = self._counters.get(type_str, 0) + 1
+            tok = make_token(type_str, self._counters[type_str])
+            self._map[key] = tok
+        return tok
+
+
 def find_tokens(text: str) -> list[tuple[str, str, int, int, int]]:
     """Find every token in ``text``.
 

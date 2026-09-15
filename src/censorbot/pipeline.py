@@ -44,10 +44,17 @@ class SanitizeResult:
 
 def sanitize(text: str, policy: Policy, *, use_ner: bool = True,
              use_spacy: bool = True, run_leak_scan: bool = True,
-             vault: Vault | None = None) -> SanitizeResult:
-    """Pseudonymise ``text`` under ``policy``. Returns a :class:`SanitizeResult`."""
+             vault: Vault | None = None, registry=None) -> SanitizeResult:
+    """Pseudonymise ``text`` under ``policy``. Returns a :class:`SanitizeResult`.
 
-    vault = vault or Vault()
+    Pass a shared :class:`~censorbot.tokens.TokenRegistry` (and a shared ``vault``)
+    across several documents to give the same entity the same token in all of them
+    (opt-in cross-document consistency).
+    """
+
+    # Not `vault or Vault()`: an empty Vault is falsy (its __len__ is 0), which
+    # would silently discard a shared vault on the first, still-empty call.
+    vault = Vault() if vault is None else vault
     spans = detect_all(text, use_ner=use_ner, use_spacy=use_spacy)
     spans = resolve_overlaps(spans)
     entities = resolve(spans)
@@ -64,7 +71,8 @@ def sanitize(text: str, policy: Policy, *, use_ner: bool = True,
             continue
         kept_entities.append(entity)
         if action == Action.TOKENIZE:
-            replacement = vault.add_entity(entity, action.value)
+            tok = registry.token_for(entity.entity_type, entity.canonical) if registry else None
+            replacement = vault.add_entity(entity, action.value, token=tok)
             n_tok += 1
         else:  # REDACT
             replacement = _REDACTED

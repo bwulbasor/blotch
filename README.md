@@ -126,6 +126,10 @@ censorbot batch ./docs --outdir ./safe --vaultdir ./vaults \
 
 # Audit a document for residual PII (optionally against its vault)
 censorbot verify ./safe/report.txt --vault ./vaults/report.cbv --passphrase "…"
+
+# Batch with consistent pseudonyms across a related set (same person → same token)
+censorbot batch ./case-files --outdir ./safe --vaultdir ./vaults \
+    --shared-vault --policy legal --passphrase "…"
 ```
 
 `sanitize` refuses to write if the leak scan isn't clean (override with

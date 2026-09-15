@@ -184,9 +184,14 @@ def _cmd_verify(args) -> int:
 def _cmd_batch(args) -> int:
     from .docwriter import VerificationError, write_document
     from .ingest import SUPPORTED
+    from .tokens import TokenRegistry
+    from .vault import Vault as _Vault
     policy = _policy(args)
     os.makedirs(args.outdir, exist_ok=True)
     os.makedirs(args.vaultdir, exist_ok=True)
+    # Optional cross-document consistency: one registry + one vault for the tree.
+    shared_registry = TokenRegistry() if args.shared_vault else None
+    shared_vault = _Vault() if args.shared_vault else None
     if not args.passphrase and not args.allow_plaintext:
         print("[error] batch needs --passphrase (or --allow-plaintext) for vaults",
               file=sys.stderr)
@@ -208,7 +213,8 @@ def _cmd_batch(args) -> int:
         stem = os.path.splitext(rel)[0].replace(os.sep, "__")
         try:
             text = load_text(path)
-            result = sanitize(text, policy, use_spacy=not args.no_spacy)
+            result = sanitize(text, policy, use_spacy=not args.no_spacy,
+                              vault=shared_vault, registry=shared_registry)
         except Exception as exc:  # noqa: BLE001
             print(f"  FAIL   {rel}: {exc}", file=sys.stderr)
             failed += 1
@@ -228,15 +234,23 @@ def _cmd_batch(args) -> int:
             print(f"  BLOCK  {rel}: output failed verification: {exc}", file=sys.stderr)
             blocked += 1
             continue
-        result.vault.save(vault_path, passphrase=args.passphrase,
-                          allow_plaintext=args.allow_plaintext)
+        if shared_vault is None:  # per-file vault (default)
+            result.vault.save(vault_path, passphrase=args.passphrase,
+                              allow_plaintext=args.allow_plaintext)
         total_entities += result.entity_count()
         done += 1
         print(f"  ok     {rel} -> {os.path.basename(out_path)} "
               f"({result.entity_count()} entities)")
 
+    if shared_vault is not None:  # one shared vault for the whole tree
+        shared_path = os.path.join(args.vaultdir, "_shared.cbv")
+        shared_vault.save(shared_path, passphrase=args.passphrase,
+                          allow_plaintext=args.allow_plaintext)
+        print(f"shared vault ({len(shared_vault)} entities) -> {shared_path}")
+
     print(f"\nbatch: {done} sanitized, {blocked} blocked, {failed} failed; "
-          f"{total_entities} entities total")
+          f"{total_entities} entities total"
+          + (" (shared pseudonyms)" if shared_vault is not None else ""))
     return 1 if (blocked or failed) else 0
 
 
@@ -333,6 +347,9 @@ def build_parser() -> argparse.ArgumentParser:
                      help="permit unencrypted vaults (not recommended)")
     bat.add_argument("--txt", action="store_true",
                      help="always write .txt output instead of the source format")
+    bat.add_argument("--shared-vault", action="store_true",
+                     help="use ONE vault + consistent tokens across all files "
+                          "(same entity -> same token everywhere)")
     bat.add_argument("--force", action="store_true",
                      help="write outputs even if the leak scan blocks")
     bat.set_defaults(func=_cmd_batch)
