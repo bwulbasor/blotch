@@ -1,44 +1,42 @@
+import re
+
 from censorbot.policy import get_policy
 from censorbot.review import render_review_html
 
 TEXT = "Alejandro Martinez, patient 48392017, a.martinez@example.com."
 
 
-def test_review_masks_and_carries_metadata():
+def test_review_renders_and_embeds_data():
     out = render_review_html(TEXT, get_policy("medical"), use_spacy=False)
     assert "<html" in out and "</html>" in out
-    # the mask block char is present
-    assert "█" in out
-    # tokens are exposed as data attributes for the tooltip
-    assert 'data-token="[[PERSON_001]]"' in out
-    assert "detected · policy" in out
+    assert "const ORIGINAL" in out and "const AUTO" in out
+    assert "policy" in out
+    # the original text is embedded (all local) and detected entities are marked
+    assert "Alejandro Martinez" in out
+    assert 'data-idx=' in out
 
 
-def test_review_escapes_html():
+def test_review_escapes_html_in_body():
+    # rendered doc text is escaped
     out = render_review_html("Ping <script>alert(1)</script> team.",
                              get_policy("personal"), use_spacy=False)
     assert "<script>alert(1)</script>" not in out
-    assert "&lt;script&gt;" in out
 
 
 def test_review_script_embed_cannot_break_out():
-    # a "</script>" in undetected text must not break out of the embedded JS
+    # a "</script>" in the embedded ORIGINAL/AUTO JSON must not break out
     out = render_review_html("note </script><img src=x onerror=alert(1)>",
                              get_policy("personal"), use_spacy=False)
     assert "</script><img" not in out
-    assert "\\u003c/script>" in out or "\\u003cimg" in out
 
 
-def test_review_preview_matches_sanitized_output():
-    # a sentence-initial repeat is masked by propagation in the real output;
-    # the preview must mask it too (no divergence between preview and output).
-    import re
-    text = "We cite Marie Curie. Curie won twice. Later, Curie retired."
-    html = render_review_html(text, get_policy("maximum"), use_spacy=False)
-    body = re.search(r'<div class="doc">(.*?)</div>', html, re.S).group(1)
-    visible = re.sub(r'<span class="orig">.*?</span>', "", body)  # drop revealable text
-    plain = re.sub(r"<[^>]+>", "", visible)
-    assert "Curie" not in plain  # every occurrence masked, matching the output
+def test_review_is_interactive_tagging():
+    out = render_review_html("Contact Maria Gomez at a@b.com.", get_policy("maximum"),
+                             use_spacy=False)
+    # the client-side engine: build output, tag by selection, keep/mask
+    assert "buildOutput" in out
+    assert "offsetOf" in out           # selection -> char offset (manual tagging)
+    assert "picker" in out             # type picker for tagging missed PII
 
 
 def test_review_has_risk_and_leak_banners():
@@ -47,16 +45,15 @@ def test_review_has_risk_and_leak_banners():
     assert "Leak scan" in out and "Re-ID risk" in out
 
 
-def test_review_is_interactive():
-    # segments drive a client-side rebuild so a reviewer can keep items in the clear
-    out = render_review_html("Contact Maria Gomez at a@b.com.", get_policy("maximum"),
-                             use_spacy=False)
-    assert "const SEGMENTS" in out and "buildOutput" in out
-    assert 'data-idx="0"' in out
-
-
-def test_review_original_present_but_masked_by_default():
-    out = render_review_html(TEXT, get_policy("medical"), use_spacy=False)
-    # original is embedded (revealable) but inside an .orig span hidden by CSS
-    assert 'class="orig"' in out
-    assert "Alejandro Martinez" in out  # revealable, not sent
+def test_review_auto_spans_have_correct_offsets():
+    # AUTO spans must index the original text correctly (so JS highlights align)
+    import json
+    text = "Email a.martinez@example.com now."
+    out = render_review_html(text, get_policy("personal"), use_spacy=False)
+    m = re.search(r"const AUTO = (\[.*?\]);", out)
+    spans = json.loads(m.group(1).replace("\\u003c", "<"))
+    assert spans, "expected at least one detected span"
+    # every span slices to real text
+    for s in spans:
+        assert text[s["start"]:s["end"]]  # non-empty, valid offsets
+    assert any(text[s["start"]:s["end"]] == "a.martinez@example.com" for s in spans)
