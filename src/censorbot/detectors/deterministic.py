@@ -75,6 +75,9 @@ _COORD = re.compile(r"[-+]?\d{1,2}\.\d{3,}[ \t]*,[ \t]*[-+]?\d{1,3}\.\d{3,}")
 # number, short letter code, number, optional /year. Distinctive enough that a
 # bare digit-letter-digit run in prose rarely collides.
 _CASE_NUM = re.compile(r"\b(?:AZ[ \t]+)?\d{1,4}[ \t]+[A-Z][a-z]?[ \t]+\d{1,4}(?:[ \t]*/[ \t]*\d{2,4})?\b")
+# Slash reference / application numbers ("36110/97", "5136/11") - court case and
+# file references. First group >=3 digits avoids fractions/ratios like "3/4".
+_REF_NUM = re.compile(r"\b\d{3,6}/\d{2,4}\b")
 # Explicitly-labelled identifiers: "Patient No: 48392017", "Case AZ 17 C 391/26".
 _LABELLED = re.compile(
     r"\b(?P<label>patient|case|file|account|acct|reference|ref|invoice|policy|"
@@ -156,6 +159,7 @@ def detect(text: str) -> list[Span]:
     spans += _yield(_BTC, text, EntityType.CRYPTO, "btc", 0.9)
     spans += _yield(_COORD, text, EntityType.COORDINATES, "coord", 0.8)
     spans += _yield(_CASE_NUM, text, EntityType.CASE_ID, "case_num", 0.8)
+    spans += _yield(_REF_NUM, text, EntityType.CASE_ID, "ref_num", 0.7)
     spans += _yield(_DATE, text, EntityType.DATE, "date", 0.7)
 
     # Validated detectors: only emit on checksum pass (high precision).

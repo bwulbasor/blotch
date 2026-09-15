@@ -28,3 +28,6 @@ vault.json
 .idea/
 .DS_Store
 Thumbs.db
+
+# third-party benchmark data (downloaded on demand, MIT-licensed TAB)
+/benchmarks/data/
