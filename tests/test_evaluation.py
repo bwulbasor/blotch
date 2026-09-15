@@ -17,6 +17,22 @@ def test_synthetic_zero_leak_and_full_coverage():
     assert res.leak_rate == 0.0, res.report()
 
 
+def test_synthetic_precision_high():
+    # header/label/currency words must not be flagged (over-redaction guard).
+    res = evaluate(use_spacy=False)
+    assert res.precision >= 0.98, res.report()
+
+
+def test_headers_and_currency_not_persons():
+    from censorbot.detectors import ner
+    from censorbot.spans import EntityType
+    spans = ner.detect("DISCHARGE SUMMARY\nBill to: Grace Baker\nAmount: EUR 4,000",
+                       use_spacy=False)
+    persons = {s.value for s in spans if s.entity_type == EntityType.PERSON}
+    assert "Grace Baker" in persons
+    assert not any(v in persons for v in ("DISCHARGE SUMMARY", "EUR", "Amount", "DISCHARGE"))
+
+
 def test_synthetic_round_trip_and_leak_scan_clean():
     for doc in generate():
         result = sanitize(doc.text, get_policy("maximum"), use_spacy=False)

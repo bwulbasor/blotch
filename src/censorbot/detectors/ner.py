@@ -32,6 +32,25 @@ _STOPWORDS = {
     "But", "Or", "If", "When", "According", "Patient",
 }
 
+# Words that are never a person's name: function words and document-structure
+# / form-label words. A candidate run has these trimmed from its ends (so
+# "In Vienna" -> "Vienna", "DISCHARGE SUMMARY" -> dropped) without touching real
+# names in the middle. Lower-cased for lookup. Titles are handled separately and
+# are deliberately NOT included here.
+_NON_NAME = {w.lower() for w in _STOPWORDS} | {
+    "of", "to", "from", "by", "with", "as", "is", "was", "were", "be", "been",
+    "re", "cc", "bcc", "attn", "dear", "sincerely", "regards", "subject",
+    "summary", "invoice", "discharge", "confidential", "draft", "section",
+    "article", "chapter", "page", "figure", "note", "notes", "total",
+    "subtotal", "amount", "balance", "date", "ref", "reference",
+    "contact", "billing", "emergency", "plaintiff", "defendant", "exhibit",
+    "appendix", "memo", "report", "statement", "notice", "admitting",
+    "regarding", "dob", "name", "address", "phone", "email", "questions", "due",
+    # currency codes and financial labels (all-caps codes, never names)
+    "eur", "usd", "gbp", "chf", "jpy", "cad", "aud", "cny", "sek", "nok", "dkk",
+    "pln", "czk", "huf", "iban", "bic", "swift", "vat", "pin", "otp", "url",
+}
+
 
 def _spacy_detect(text: str):  # pragma: no cover - exercised only when spaCy present
     try:
@@ -110,24 +129,43 @@ def _heuristic_detect(text: str) -> list[Span]:
                 j += 1
             else:
                 break
-        start, end = run[0].start(), run[-1].end()
-        value = text[start:end]
         lowered = {r.group(0).lower().rstrip(".") for r in run}
         titled = _is_title(run[0].group(0))
+
+        # ORG is decided on the FULL run (suffix words must not be trimmed away).
         if lowered & _ORG_SUFFIX_WORDS:
-            spans.append(Span(start, end, EntityType.ORGANIZATION, value, 0.55, "ner_heur"))
-        else:
-            content = [r for r in run if not _is_title(r.group(0))]
-            if not titled and len(content) == 1:
-                first = content[0].group(0)
-                # A lone single letter is an initial, not a name; a stopword or a
-                # sentence-opening lone word is too weak to treat as a person.
-                if (len(first) < 2 or first in _STOPWORDS
-                        or _is_sentence_initial(text, content[0].start())):
-                    i = j
-                    continue
-            if content:  # a bare title alone is not a person
-                spans.append(Span(start, end, EntityType.PERSON, value, 0.5, "ner_heur"))
+            start, end = run[0].start(), run[-1].end()
+            spans.append(Span(start, end, EntityType.ORGANIZATION, text[start:end],
+                              0.55, "ner_heur"))
+            i = j
+            continue
+
+        # PERSON candidate: trim function / structure words from both ends so
+        # "In Vienna" -> "Vienna" and "DISCHARGE SUMMARY" -> nothing, without
+        # touching a real name in the middle. Titles are kept as the leading word.
+        person = list(run)
+        while person and not _is_title(person[0].group(0)) \
+                and person[0].group(0).lower().rstrip(".") in _NON_NAME:
+            person.pop(0)
+        while person and person[-1].group(0).lower().rstrip(".") in _NON_NAME:
+            person.pop()
+        if not person:
+            i = j
+            continue
+        content = [r for r in person if not _is_title(r.group(0))]
+        titled = _is_title(person[0].group(0))
+        if not titled and len(content) == 1:
+            first = content[0].group(0)
+            # A lone single letter is an initial, not a name; a stopword or a
+            # sentence-opening lone word is too weak to treat as a person.
+            if (len(first) < 2 or first in _STOPWORDS
+                    or _is_sentence_initial(text, content[0].start())):
+                i = j
+                continue
+        if content:  # a bare title alone is not a person
+            start, end = person[0].start(), person[-1].end()
+            spans.append(Span(start, end, EntityType.PERSON, text[start:end], 0.5,
+                              "ner_heur"))
         i = j
     return spans
 

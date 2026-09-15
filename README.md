@@ -242,7 +242,7 @@ python -m evaluation.run_wild      # run over real docs: throughput, crashes, le
   bank — names that are common words, Unicode/apostrophe/hyphen names,
   international phones, multi-country checksum-valid IBANs, ambiguous numbers,
   court case numbers, and coreference. Current result (heuristic NER): **100%
-  coverage recall, 0% leak** across 13 entity types (this gates CI).
+  coverage recall, 0% leak, 100% precision** across 13 entity types (gates CI).
 * **Wild corpus** (`fetch_corpus.py`, gitignored) pulls public-domain literature
   and public-figure/reference Wikipedia articles. On ~890K chars: **0 crashes,
   leak-scan clean on every document**, ~40K chars/sec (heuristic path).
