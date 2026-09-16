@@ -60,6 +60,21 @@ def test_csv_structure_preserved(tmp_path):
     assert "Alejandro Martinez" not in lines[1]
 
 
+def test_extract_bytes_pdf_roundtrip(tmp_path):
+    pytest.importorskip("reportlab")
+    pytest.importorskip("pypdf")
+    from censorbot.ingest import extract_bytes
+    out = tmp_path / "d.pdf"
+    write_document(str(out), "Contact Maria Gomez at m@example.com.")
+    text = extract_bytes(out.read_bytes(), ".pdf")
+    assert "Maria Gomez" in text and "m@example.com" in text
+
+
+def test_extract_bytes_txt():
+    from censorbot.ingest import extract_bytes
+    assert extract_bytes(b"hello Alejandro", ".txt") == "hello Alejandro"
+
+
 def test_unsupported_extension(tmp_path):
     result = _san()
     with pytest.raises(ValueError):

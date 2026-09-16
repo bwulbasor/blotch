@@ -143,7 +143,9 @@ _TEMPLATE = """<!doctype html>
   <span class="spacer"></span>
   <label>Mode
     <select id="mode" title="how to censor">
-      <option value="semantic" selected>Semantic (reversible tokens)</option>
+      <option value="semantic" selected>Semantic tokens (reversible)</option>
+      <option value="synthetic">Synthetic substitution (realistic fakes)</option>
+      <option value="generalize">Generalize (less specific)</option>
       <option value="total">Total redaction ([REDACTED])</option>
       <option value="blackout">Blackout (████)</option>
     </select></label>
@@ -181,20 +183,62 @@ points to. Everything stays in this page.</div>
 
   const norm = v => v.trim().toLowerCase().replace(/\\s+/g,' ');
   function mode() {{ return document.getElementById('mode').value; }}
+  const REVERSIBLE = {{semantic:1, synthetic:1}};
+
+  // --- synthetic substitution: realistic fakes, consistent per (type,value) ---
+  const F1 = ['Daniel','Sarah','Michael','Laura','Thomas','Anna','David','Emma',
+    'Peter','Julia','Mark','Nina','Paul','Lena','Simon','Clara','Jonas','Mia'];
+  const F2 = ['Weber','Klein','Fischer','Wagner','Becker','Schulz','Hoffmann',
+    'Koch','Bauer','Richter','Wolf','Neumann','Schwarz','Braun','Krause','Lang'];
+  const CITIES = ['Springfield','Riverton','Fairview','Greenville','Millbrook','Oakdale'];
+  const ORGS = ['Acme Ltd','Globex Corp','Initech','Umbrella Group','Meridian AG','Vertex Co'];
+  function fakeFor(type, n) {{
+    switch (type) {{
+      case 'PERSON': return F1[n % F1.length] + ' ' + F2[(n*7) % F2.length];
+      case 'EMAIL': return (F1[n % F1.length] + '.' + F2[(n*7) % F2.length]).toLowerCase() + '@example.com';
+      case 'PHONE': return '+1 555 ' + String(1000 + n).padStart(4,'0');
+      case 'LOCATION': return CITIES[n % CITIES.length];
+      case 'ADDRESS': return (10 + n) + ' Maple Street';
+      case 'ORGANIZATION': return ORGS[n % ORGS.length];
+      case 'DATE': case 'DOB': return '01 January 2000';
+      case 'IBAN': return 'DE00 0000 0000 0000 0000 ' + String(n%100).padStart(2,'0');
+      case 'CREDIT_CARD': return '4000 0000 0000 ' + String(n%10000).padStart(4,'0');
+      case 'IP': return '10.0.0.' + (1 + n % 254);
+      case 'CRYPTO': return '0x' + (n+1).toString(16).padStart(40,'0');
+      default: return type.replace(/_/g,'') + '-' + String(1000 + n);
+    }}
+  }}
+  const GEN = {{PERSON:'a person', ORGANIZATION:'an organisation', LOCATION:'a place',
+    ADDRESS:'an address', EMAIL:'an email', PHONE:'a phone number', IBAN:'a bank account',
+    CREDIT_CARD:'a card number', IP:'an IP address', GOV_ID:'an ID', PATIENT_ID:'a patient ID',
+    CASE_ID:'a case number', ACCOUNT_ID:'an account', CRYPTO:'a wallet'}};
+  function generalizeFor(type, val) {{
+    if (type === 'DATE' || type === 'DOB') {{
+      const y = (val.match(/\\b(?:19|20)\\d\\d\\b/) || [])[0];
+      return y ? y : '[a date]';
+    }}
+    return '[' + (GEN[type] || type.toLowerCase()) + ']';
+  }}
 
   // Assign a token per active (non-kept) span. Auto spans keep the pipeline's
   // token (co-reference preserved: same entity -> same token). User tags reuse an
   // existing token for the same (type,value) or get a fresh one. In "total" /
   // "blackout" mode the value is not recoverable, so the mapping is not reversible.
+  // Every span belongs to an ENTITY: for a detected span that is the pipeline's
+  // token (co-reference from resolution + propagation); for a user tag it is
+  // (type, normalised value). Keying replacements by entity keeps the same person
+  // -> the same token/fake in every mode.
+  function entityKey(s, val) {{
+    return (!s.user && s.token) ? ('AUTO|' + s.token) : (s.type + '|' + norm(val));
+  }}
+
   function computeTokens() {{
     const act = state.spans.filter(s=>!s.kept).slice().sort((a,b)=>a.start-b.start);
     const m = mode();
-    const counters={{}}, map={{}}, rows=[], spanTok=new Map(), seenTok={{}};
-    // seed the (type,value)->token map and per-type counters from auto tokens
-    for (const s of state.spans) {{
+    const counters={{}}, map={{}}, rows=[], spanTok=new Map(), seenRow={{}};
+    // pre-seed per-type counters from the pipeline's token indices (semantic)
+    if (m === 'semantic') for (const s of state.spans) {{
       if (s.kept || s.user || !s.token) continue;
-      const key = s.type + '|' + norm(ORIGINAL.slice(s.start, s.end));
-      if (!map[key]) map[key] = s.token;
       const mm = /_(\\d+)\\]\\]$/.exec(s.token);
       if (mm) counters[s.type] = Math.max(counters[s.type]||0, +mm[1]);
     }}
@@ -205,19 +249,24 @@ points to. Everything stays in this page.</div>
       let tok;
       if (m === 'total' || s.type === 'REDACT') tok = '[REDACTED]';
       else if (m === 'blackout') tok = '█'.repeat(Math.min(val.replace(/\\s/g,'').length||1, 16));
+      else if (m === 'generalize') tok = generalizeFor(s.type, val);
       else {{
-        const key = s.type + '|' + norm(val);
-        if (map[key]) tok = map[key];
-        else {{ counters[s.type] = (counters[s.type]||0)+1;
-          tok = '[[' + s.type + '_' + pad(counters[s.type]) + ']]'; map[key] = tok; }}
+        const ek = entityKey(s, val);
+        if (map[ek]) tok = map[ek];                       // same entity -> same replacement
+        else if (m === 'semantic' && !s.user && s.token) tok = map[ek] = s.token;
+        else {{
+          counters[s.type] = (counters[s.type]||0) + 1;
+          tok = (m === 'synthetic') ? fakeFor(s.type, counters[s.type]-1)
+                                    : ('[[' + s.type + '_' + pad(counters[s.type]) + ']]');
+          map[ek] = tok;
+        }}
       }}
       spanTok.set(s, tok);
-      // one mapping row per token (semantic) or per distinct value (total/blackout)
-      const dk = (m === 'semantic') ? tok : (tok + '|' + norm(val));
-      if (!seenTok[dk]) {{ seenTok[dk]=1; rows.push({{token: tok, value: val, type: s.type}}); }}
+      const dk = REVERSIBLE[m] ? tok : (tok + '|' + norm(val));
+      if (!seenRow[dk]) {{ seenRow[dk]=1; rows.push({{token: tok, value: val, type: s.type}}); }}
       pos = s.end;
     }}
-    return {{spanTok, rows, reversible: (m === 'semantic')}};
+    return {{spanTok, rows, reversible: !!REVERSIBLE[m]}};
   }}
 
   function render() {{
@@ -245,12 +294,12 @@ points to. Everything stays in this page.</div>
       || '<tr><td colspan=3 style="color:#888">nothing masked</td></tr>';
     document.getElementById('mapn').textContent = '(' + rows.length + ')';
     // reversibility note per mode
-    const rev = mode() === 'semantic';
-    document.getElementById('thtok').textContent = rev ? 'Token' : 'Becomes';
+    const rev = !!REVERSIBLE[mode()];
+    document.getElementById('thtok').textContent = rev ? 'Replacement' : 'Becomes';
     document.getElementById('maptitle').firstChild.textContent =
-      rev ? 'Mapping — token → original ' : 'Removed values (not reversible) ';
+      rev ? 'Mapping — replacement → original ' : 'Removed values (not reversible) ';
     document.getElementById('revnote').innerHTML = rev
-      ? '<span style="color:#1e7d33">Reversible</span> — restore the original later with this table.'
+      ? '<span style="color:#1e7d33">Reversible</span> — restore the original later with this mapping.'
       : '<span style="color:#9a031e">Not reversible</span> — the originals cannot be recovered.';
     const masked = state.spans.filter(s=>!s.kept).length;
     const kept = state.spans.filter(s=>s.kept).length;

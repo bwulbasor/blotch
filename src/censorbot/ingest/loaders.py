@@ -37,6 +37,32 @@ def load_text(path: str) -> str:
     raise ValueError(f"unsupported file type {ext!r}; supported: {', '.join(SUPPORTED)}")
 
 
+def extract_bytes(data: bytes, ext: str) -> str:
+    """Extract plain text from in-memory document ``data`` given its extension.
+
+    Used by the daemon's upload endpoint so a PDF/DOCX can be reviewed without
+    writing it to disk. ``ext`` is like ".pdf" / ".docx" / ".txt".
+    """
+    import io
+    ext = ext.lower()
+    if ext in _PLAIN:
+        return data.decode("utf-8", errors="replace")
+    if ext == ".pdf":
+        try:
+            from pypdf import PdfReader
+        except Exception as exc:
+            raise RuntimeError("PDF support needs the 'docs' extra") from exc
+        reader = PdfReader(io.BytesIO(data))
+        return "\n".join((p.extract_text() or "") for p in reader.pages)
+    if ext == ".docx":
+        try:
+            import docx
+        except Exception as exc:
+            raise RuntimeError("DOCX support needs the 'docs' extra") from exc
+        return "\n".join(p.text for p in docx.Document(io.BytesIO(data)).paragraphs)
+    raise ValueError(f"unsupported file type {ext!r}")
+
+
 def _load_pdf(path: str) -> str:  # pragma: no cover - optional dependency
     try:
         from pypdf import PdfReader

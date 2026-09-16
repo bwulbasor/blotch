@@ -30,7 +30,7 @@ from .spans import resolve_overlaps
 from .tokens import make_token
 from .vault import Vault
 
-MAX_BODY = 8 * 1024 * 1024  # 8 MiB
+MAX_BODY = 32 * 1024 * 1024  # 32 MiB (base64-encoded PDF uploads)
 
 
 class _Handler(BaseHTTPRequestHandler):
@@ -89,6 +89,8 @@ class _Handler(BaseHTTPRequestHandler):
                 self._send(200, _restore(data))
             elif self.path == "/review":
                 self._send(200, _review(data))
+            elif self.path == "/extract":
+                self._send(200, _extract(data))
             else:
                 self._send(404, {"error": "not found"})
         except KeyError as exc:
@@ -132,6 +134,17 @@ def _sanitize(data: dict) -> dict:
         },
         "counts": {"tokenized": result.num_tokenized, "redacted": result.num_redacted},
     }
+
+
+def _extract(data: dict) -> dict:
+    """Extract text from an uploaded document (base64 in ``content``)."""
+    import base64
+    import os as _os
+    from .ingest import extract_bytes
+    name = data.get("filename", "upload.txt")
+    raw = base64.b64decode(data["content"])
+    text = extract_bytes(raw, _os.path.splitext(name)[1] or ".txt")
+    return {"text": text, "chars": len(text)}
 
 
 def _review(data: dict) -> dict:
@@ -178,7 +191,12 @@ _UI_HTML = """<!doctype html><html lang="en"><head><meta charset="utf-8">
 <h1>censorbot</h1>
 <p class="sub">Local privacy gateway. Text is processed on this machine; only the
 sanitized version is shown for you to copy. Nothing is sent anywhere.</p>
-<textarea id="in" placeholder="Paste a document here..."></textarea>
+<div class="row">
+ <label style="cursor:pointer">📄 Upload PDF / DOCX / TXT
+   <input type="file" id="file" accept=".pdf,.docx,.txt,.md,.csv" style="display:none"></label>
+ <span id="fstatus" style="color:#888;font-size:13px"></span>
+</div>
+<textarea id="in" placeholder="Paste a document here, or upload one above..."></textarea>
 <div class="row">
  <label>Policy <select id="policy"></select></label>
  <button class="primary" id="san">Sanitize</button>
@@ -203,6 +221,16 @@ sanitized version is shown for you to copy. Nothing is sent anywhere.</p>
  async function post(path,body){const r=await fetch(path,{method:'POST',
    headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});return r.json();}
  function esc(s){return s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+ $('#file').onchange=async(e)=>{
+   const f=e.target.files[0]; if(!f) return;
+   $('#fstatus').textContent='extracting '+f.name+'...';
+   const bytes=new Uint8Array(await f.arrayBuffer());
+   let bin=''; const CH=0x8000;
+   for(let i=0;i<bytes.length;i+=CH) bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+CH));
+   const d=await post('/extract',{filename:f.name,content:btoa(bin)});
+   if(d.error){$('#fstatus').textContent='error: '+d.error;return;}
+   $('#in').value=d.text; $('#fstatus').textContent=f.name+' — '+d.chars+' chars extracted';
+ };
  $('#san').onclick=async()=>{
    $('#status').textContent='working...';
    const d=await post('/sanitize',{text:$('#in').value,policy:$('#policy').value,use_spacy:false});
