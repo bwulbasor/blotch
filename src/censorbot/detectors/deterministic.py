@@ -36,6 +36,8 @@ _IPV6 = re.compile(r"\b(?:[0-9A-Fa-f]{1,4}:){2,7}[0-9A-Fa-f]{1,4}\b")
 _PHONE = re.compile(r"(?<![\w.])\+?\d[\d \t().\-]{5,17}\d(?![\w])")
 # Guards so bibliography noise isn't mistaken for phone numbers.
 _YEAR_RANGE = re.compile(r"^(?:19|20)\d{2}\s*[-–]\s*(?:19|20)\d{2}$")
+# A parenthesised 4-digit year is a citation year ("417 (2023)"), not a phone.
+_PAREN_YEAR = re.compile(r"\((?:19|20)\d{2}")
 _IBAN = re.compile(r"\b[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]{1,4}){2,8}\b")
 _CARD = re.compile(r"\b(?:\d[ \-]?){13,19}\b")
 _US_SSN = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
@@ -206,6 +208,8 @@ def detect(text: str) -> list[Span]:
             continue
         if _YEAR_RANGE.match(val.strip()):
             continue  # "2012-2013" is a year range, not a phone
+        if _PAREN_YEAR.search(val):
+            continue  # "417 (2023)" is a law-report citation, not a phone
         if n_digits == 13 and digits_only.startswith(("978", "979")):
             continue  # ISBN-13
         spans.append(Span(m.start(), m.end(), EntityType.PHONE, val, 0.6, "phone"))

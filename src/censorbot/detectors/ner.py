@@ -126,9 +126,15 @@ _NON_NAME = {w.lower() for w in _STOPWORDS} | {
     "supreme", "federal", "national", "international", "regional", "central",
     "special", "general", "foreign", "affairs", "grand", "adviser", "advisers",
     "class", "prevention", "tax", "vice", "appellate", "ordinary", "military",
-    "legal", "justice", "directorate", "terrorism", "reports", "report",
-    "judgments", "judgements", "lawyer", "lawyers", "public", "common",
-    "employment", "district", "districts",
+    "legal", "justice", "justices", "directorate", "terrorism", "reports",
+    "report", "judgments", "judgements", "lawyer", "lawyers", "public", "common",
+    "employment", "district", "districts", "circuit", "circuits", "panel",
+    "petitioner", "petitioners", "intervenor", "intervenors",
+    # political adjectives / demonyms and Latin legal boilerplate that a
+    # capitalisation heuristic reads as names ("Democratic", "Per Curiam",
+    # "Ibid"). Multi-word proper names ("Sherrod Brown") are unaffected.
+    "democratic", "republican", "congressional", "senatorial", "per", "curiam",
+    "ibid", "cite", "ante", "post", "supra", "certiorari", "stay",
     # pure adverbs / conjunctions that can open a line before a name ("Also
     # Alejandro ...") - trimming them from run ends keeps the name a single entity
     # (fixes coreference: "Also Alejandro" -> "Alejandro").
@@ -209,8 +215,18 @@ def _spacy_detect(text: str):  # pragma: no cover - exercised only when spaCy pr
             etype = label_map.get(ent.label_)
             if etype is None:
                 continue
-            spans.append(Span(base + ent.start_char, base + ent.end_char,
-                              etype, ent.text, 0.85, "spacy"))
+            # A named-entity token never starts or ends with whitespace/newline;
+            # spaCy sometimes glues a trailing wrap onto a span ("the \n"). Trim
+            # the offsets so the surface is clean (interior bytes are untouched,
+            # so a soft-wrapped name is still fully covered - no recall loss).
+            surface = ent.text
+            lead = len(surface) - len(surface.lstrip())
+            trail = len(surface) - len(surface.rstrip())
+            start = base + ent.start_char + lead
+            end = base + ent.end_char - trail
+            if end - start < 2:
+                continue
+            spans.append(Span(start, end, etype, surface.strip(), 0.85, "spacy"))
     return spans
 
 
