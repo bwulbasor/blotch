@@ -1,8 +1,8 @@
 """Command-line interface.
 
-    censorbot inspect  <file> [--policy P]
-    censorbot sanitize <file> --out OUT --vault V [--policy P] [--passphrase PW]
-    censorbot restore  <file> --vault V [--passphrase PW] [--out OUT]
+    blotch inspect  <file> [--policy P]
+    blotch sanitize <file> --out OUT --vault V [--policy P] [--passphrase PW]
+    blotch restore  <file> --vault V [--passphrase PW] [--out OUT]
 
 All processing is local. ``sanitize`` writes the pseudonymised document and an
 (encrypted) vault; ``restore`` rehydrates a model's response using that vault.
@@ -288,8 +288,8 @@ def _cmd_restore(args) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="censorbot", description=__doc__)
-    p.add_argument("--version", action="version", version=f"censorbot {__version__}")
+    p = argparse.ArgumentParser(prog="blotch", description=__doc__)
+    p.add_argument("--version", action="version", version=f"blotch {__version__}")
     sub = p.add_subparsers(dest="command", required=True)
 
     common = argparse.ArgumentParser(add_help=False)

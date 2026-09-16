@@ -1,6 +1,6 @@
 import pytest
 
-from censorbot import Gateway, LeakBlocked, echo_provider, get_policy
+from blotch import Gateway, LeakBlocked, echo_provider, get_policy
 
 SENSITIVE = "Alejandro Martinez, patient number 48392017, a.martinez@example.com."
 
@@ -42,7 +42,7 @@ def test_gateway_blocks_on_provider_leak_back():
 
 
 def test_block_on_leak_raises(monkeypatch):
-    import censorbot.gateway as gwmod
+    import blotch.gateway as gwmod
 
     class FakeReport:
         blocked = True

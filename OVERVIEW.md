@@ -1,10 +1,10 @@
-# censorbot
+# blotch
 
 A small gatekeeper that runs on your own computer. Before you paste something
 sensitive into ChatGPT, Claude, or any outside service, it quietly swaps every
 name, ID, email, and account number for a harmless placeholder like
 `[[PERSON_001]]`. You send the safe version out. When the answer comes back
-still using those placeholders, you drop it back into censorbot and it puts the
+still using those placeholders, you drop it back into blotch and it puts the
 real names back in. The actual secrets, and the table that remembers which
 placeholder means what, never leave your machine.
 
@@ -17,7 +17,7 @@ your document
      │
      ▼
 ┌──────────────┐   sanitize     ┌────────────────────────┐
-│  censorbot   │ ─────────────► │  safe text with tokens │  ──►  AI service
+│  blotch      │ ─────────────► │  safe text with tokens │  ──►  AI service
 │  (local)     │                │  [[PERSON_001]] ...     │       (ChatGPT,
 │              │                └────────────────────────┘        Claude, etc.)
 │  keeps the   │                                                      │
@@ -78,7 +78,7 @@ Most privacy tools have a hole in them.
   printed court file but useless when you actually wanted a sensible answer back
   from the AI.
 
-censorbot is the rare mix of both good halves. It stays fully on your machine,
+blotch is the rare mix of both good halves. It stays fully on your machine,
 and it is reversible, so you get a real usable answer instead of a page full of
 black bars. And it does not just claim to be accurate. It is measured against
 real public test sets, catching every direct identifier in a corpus of over a
@@ -184,7 +184,7 @@ Measured against public, real-world test sets:
   cases. 100% recall on direct identifiers (names and case codes), with precision
   around 95%.
 - **AI4Privacy (pii-masking-200k)** — broad synthetic PII. Around 92% recall on
-  the identifier types censorbot targets.
+  the identifier types blotch targets.
 
 These run as regression gates, so a change that would quietly lower recall or
 precision fails the build.
@@ -195,7 +195,7 @@ precision fails the build.
 
 ```bash
 pip install -e ".[docs]"
-python -m censorbot serve
+python -m blotch serve
 ```
 
 Then open **http://127.0.0.1:8723**, upload a PDF, DOCX, or TXT (or just paste

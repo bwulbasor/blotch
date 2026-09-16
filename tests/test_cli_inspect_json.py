@@ -2,7 +2,7 @@ import io
 import json
 from contextlib import redirect_stdout
 
-from censorbot.cli import main
+from blotch.cli import main
 
 
 def test_inspect_json(tmp_path):

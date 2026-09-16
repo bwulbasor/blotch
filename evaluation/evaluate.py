@@ -1,4 +1,4 @@
-"""Score censorbot detection against ground-truth labels.
+"""Score blotch detection against ground-truth labels.
 
 Key metrics (privacy framing):
 
@@ -18,8 +18,8 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass, field
 
-from censorbot.detectors import detect_all
-from censorbot.spans import EntityType, Span, resolve_overlaps
+from blotch.detectors import detect_all
+from blotch.spans import EntityType, Span, resolve_overlaps
 
 from .synth import GoldSpan, LabeledDoc, generate
 
@@ -114,7 +114,7 @@ def evaluate(docs: list[LabeledDoc] | None = None, *, use_spacy: bool = False) -
 
 def main() -> int:
     res = evaluate()
-    print("=== censorbot synthetic evaluation (heuristic NER) ===")
+    print("=== blotch synthetic evaluation (heuristic NER) ===")
     print(res.report())
     # Fail (for CI) if any gold PII span leaked.
     return 1 if res.leak_rate > 0 else 0

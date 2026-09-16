@@ -6,7 +6,7 @@ out (Unicode names, court case numbers, occurrence propagation, single-char
 initials).
 """
 
-from censorbot import get_policy, restore, sanitize
+from blotch import get_policy, restore, sanitize
 from evaluation.evaluate import evaluate
 from evaluation.synth import generate
 
@@ -32,8 +32,8 @@ def test_synthetic_type_accuracy_high():
 
 
 def test_headers_and_currency_not_persons():
-    from censorbot.detectors import ner
-    from censorbot.spans import EntityType
+    from blotch.detectors import ner
+    from blotch.spans import EntityType
     spans = ner.detect("DISCHARGE SUMMARY\nBill to: Grace Baker\nAmount: EUR 4,000",
                        use_spacy=False)
     persons = {s.value for s in spans if s.entity_type == EntityType.PERSON}

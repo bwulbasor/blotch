@@ -1,5 +1,5 @@
-from censorbot import get_policy, sanitize, scan
-from censorbot.rehydrate import restore, validate_response
+from blotch import get_policy, sanitize, scan
+from blotch.rehydrate import restore, validate_response
 
 
 def _san(text, policy="personal"):

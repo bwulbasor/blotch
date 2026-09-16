@@ -1,6 +1,6 @@
 """Privacy policies: modes instead of dozens of per-run switches (plan §5).
 
-A policy maps each :class:`~censorbot.spans.EntityType` to an action. The MVP ships
+A policy maps each :class:`~blotch.spans.EntityType` to an action. The MVP ships
 one reversible action (``TOKENIZE``) plus ``KEEP``; ``REDACT`` (permanent, no
 rehydration) is available for values that should never come back. Synthetic /
 generalising strategies are deliberately deferred (see README "Why opaque tokens

@@ -1,8 +1,8 @@
-# censorbot
+# blotch
 
-[![CI](https://github.com/bwulbasor/censorbot/actions/workflows/ci.yml/badge.svg)](https://github.com/bwulbasor/censorbot/actions/workflows/ci.yml)
+[![CI](https://github.com/bwulbasor/blotch/actions/workflows/ci.yml/badge.svg)](https://github.com/bwulbasor/blotch/actions/workflows/ci.yml)
 
-**A local privacy gateway for documents.** censorbot puts a reversible
+**A local privacy gateway for documents.** blotch puts a reversible
 pseudonymisation layer between your sensitive information and an external
 AI/service. The identifying data — and the token→original mapping that reverses
 it — **never leave your machine**. Only opaque, reversible tokens are transmitted.
@@ -40,7 +40,7 @@ implementation:
 
 1. **Regenerate, don't edit.** In-place PDF redaction is a notorious leak source
    (hidden text layers, annotations, form fields, metadata, embedded files, OCR
-   layers). censorbot extracts text and **regenerates a clean document from the
+   layers). blotch extracts text and **regenerates a clean document from the
    sanitised text** — regeneration structurally cannot carry forward a layer it
    never copied.
 2. **Opaque tokens only, for now.** Synthetic ("Alejandro→Daniel Weber") and
@@ -65,8 +65,8 @@ implementation:
    relationship graphs survive (`A owes B, B owes C` stays intact).
 7. **Quasi-identifier re-identification is real but not fully solvable here.**
    Removing a name while leaving "the 47-year-old CEO who survived the 2024
-   accident" is still a leak. censorbot ships this as an honest **advisory**
-   (`censorbot risk`, [reidrisk.py](src/censorbot/reidrisk.py)) that flags
+   accident" is still a leak. blotch ships this as an honest **advisory**
+   (`blotch risk`, [reidrisk.py](src/blotch/reidrisk.py)) that flags
    residual quasi-identifiers and a qualitative level — never a claim of safety.
 
 ## Token format
@@ -97,38 +97,38 @@ PDF/DOCX are optional extras that degrade gracefully when absent.
 
 ```bash
 # See what would be detected, and with what confidence
-censorbot inspect note.txt --policy medical
+blotch inspect note.txt --policy medical
 
 # Pseudonymise; write sanitised text + an encrypted vault
-censorbot sanitize note.txt --out safe.txt --vault note.cbv \
+blotch sanitize note.txt --out safe.txt --vault note.cbv \
     --policy medical --passphrase "…"
 
 # ... send safe.txt to any model, save its reply to reply.txt ...
 
 # Rehydrate the reply locally
-censorbot restore reply.txt --vault note.cbv --passphrase "…"
+blotch restore reply.txt --vault note.cbv --passphrase "…"
 
 # Run the local gateway daemon (loopback only, zero deps)
-censorbot serve --port 8723
+blotch serve --port 8723
 
 # Benchmark detection / leak-rate / round-trip on the built-in fixtures
-censorbot benchmark --policy maximum
+blotch benchmark --policy maximum
 
 # Generate the visual review preview (masked, click to inspect each entity)
-censorbot review examples/discharge_summary.txt --out review.html --policy medical
+blotch review examples/discharge_summary.txt --out review.html --policy medical
 
 # Advisory: residual re-identification risk after names/IDs are removed
-censorbot risk examples/discharge_summary.txt --policy medical
+blotch risk examples/discharge_summary.txt --policy medical
 
 # Sanitise a whole directory tree (one encrypted vault per file)
-censorbot batch ./docs --outdir ./safe --vaultdir ./vaults \
+blotch batch ./docs --outdir ./safe --vaultdir ./vaults \
     --policy legal --passphrase "…"
 
 # Audit a document for residual PII (optionally against its vault)
-censorbot verify ./safe/report.txt --vault ./vaults/report.cbv --passphrase "…"
+blotch verify ./safe/report.txt --vault ./vaults/report.cbv --passphrase "…"
 
 # Batch with consistent pseudonyms across a related set (same person → same token)
-censorbot batch ./case-files --outdir ./safe --vaultdir ./vaults \
+blotch batch ./case-files --outdir ./safe --vaultdir ./vaults \
     --shared-vault --policy legal --passphrase "…"
 ```
 
@@ -138,7 +138,7 @@ censorbot batch ./case-files --outdir ./safe --vaultdir ./vaults \
 ## Library
 
 ```python
-from censorbot import sanitize, restore, get_policy
+from blotch import sanitize, restore, get_policy
 
 result = sanitize(text, get_policy("personal"))
 assert result.leak_report.clean
@@ -155,7 +155,7 @@ The external service is completely replaceable — a provider is any callable
 `str -> str`:
 
 ```python
-from censorbot import Gateway, get_policy
+from blotch import Gateway, get_policy
 
 def my_model(sanitized: str) -> str:
     return call_chatgpt_or_claude_or_local(sanitized)   # only tokens go out
@@ -169,7 +169,7 @@ if res.response_had_anomalies:
 
 ## Local daemon
 
-`censorbot serve` runs a stdlib-only HTTP gateway on `127.0.0.1` with a
+`blotch serve` runs a stdlib-only HTTP gateway on `127.0.0.1` with a
 self-service **web UI** at `/` (paste a document, pick a policy, get the
 sanitized text) plus a JSON API:
 
@@ -184,7 +184,7 @@ GET  /policies   GET /health
 Or run it in a container (publish to loopback only — it returns vault material):
 
 ```bash
-docker build -t censorbot . && docker run --rm -p 127.0.0.1:8723:8723 censorbot
+docker build -t blotch . && docker run --rm -p 127.0.0.1:8723:8723 blotch
 ```
 
 The vault travels in the `/sanitize` response and back to `/restore`; the server
@@ -207,12 +207,12 @@ identifier behind.
 
 ## Provider adapters
 
-`censorbot.providers` ships dependency-free adapters so the gateway can talk to
+`blotch.providers` ships dependency-free adapters so the gateway can talk to
 any JSON/HTTP service — only the sanitised text is ever sent:
 
 ```python
-from censorbot import Gateway, get_policy
-from censorbot.providers import openai_chat_provider
+from blotch import Gateway, get_policy
+from blotch.providers import openai_chat_provider
 
 provider = openai_chat_provider(
     "https://api.openai.com/v1/chat/completions", api_key=KEY, model="gpt-4o-mini")
@@ -254,7 +254,7 @@ passport / licence) · Patient ID · Case/reference ID · Account ID.
 ### Real-world benchmark (Text Anonymization Benchmark)
 
 The honest measure is on **real documents with gold human annotations**, not our
-own synthetic data. `benchmarks/tab_eval.py` runs censorbot against
+own synthetic data. `benchmarks/tab_eval.py` runs blotch against
 [TAB](https://github.com/NorskRegnesentral/text-anonymization-benchmark) — 1,268
 real European Court of Human Rights judgments, each span labelled DIRECT / QUASI.
 The headline metric is **DIRECT recall** (a missed direct identifier is a leak):
@@ -272,7 +272,7 @@ distinguishing word (not just `The`/`European` + `Court`) cut over-redaction fro
 
 A second benchmark, [AI4Privacy pii-masking](https://huggingface.co/datasets/ai4privacy/pii-masking-200k),
 covers the contact/financial PII that legal text lacks. On 2,000 English rows,
-recall on the types censorbot targets is **93.5% (heuristic) / 93.9% (spaCy
+recall on the types blotch targets is **93.5% (heuristic) / 93.9% (spaCy
 union)** — the heuristic nearly matches spaCy, which matters because spaCy needs
 Python ≤ 3.13. The deterministic detectors are near-perfect:
 
@@ -368,8 +368,8 @@ is now a committed regression test.
 - [x] Provider-agnostic `Gateway` (the external service is fully replaceable)
 - [x] `POST /sanitize|/restore|/inspect` local daemon (loopback, zero deps)
 - [x] Regenerated sanitised **TXT/DOCX/PDF** output, verified on read-back
-- [x] Visual review/preview UI (`censorbot review` → standalone HTML)
-- [x] Re-identification-risk (quasi-identifier) advisory (`censorbot risk`)
+- [x] Visual review/preview UI (`blotch review` → standalone HTML)
+- [x] Re-identification-risk (quasi-identifier) advisory (`blotch risk`)
 - [x] CI (tests + leak benchmark gate on every push)
 - [ ] Layout/appearance-preserving output (same verification bar)
 - [ ] Semantic-preservation metric (needs a real model in the loop)
@@ -377,7 +377,7 @@ is now a committed regression test.
 
 ## Threat model
 
-What censorbot protects, against whom, and what it explicitly does **not**
+What blotch protects, against whom, and what it explicitly does **not**
 guarantee, is documented in [THREAT_MODEL.md](THREAT_MODEL.md). Short version: the
 external service and its response are untrusted and only ever see tokens; the
 vault is local and encrypted; detection is best-effort with a blocking leak-scan
@@ -391,4 +391,4 @@ trust boundary.
 
 ## License
 
-Apache-2.0. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).

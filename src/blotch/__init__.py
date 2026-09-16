@@ -1,4 +1,4 @@
-"""censorbot - a local privacy gateway for documents.
+"""blotch - a local privacy gateway for documents.
 
 A reversible pseudonymisation layer between sensitive information and an external
 AI/service. Sensitive data and the token->original mapping never leave the local
@@ -6,7 +6,7 @@ trust boundary; only opaque, reversible tokens are transmitted.
 
 Typical use::
 
-    from censorbot import sanitize, restore, get_policy
+    from blotch import sanitize, restore, get_policy
 
     result = sanitize(text, get_policy("personal"))
     # send result.sanitized_text to an external model, get a reply, then:

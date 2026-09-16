@@ -16,14 +16,14 @@ follows [Keep a Changelog](https://keepachangelog.com/).
   dropped / malformed tokens in an untrusted response.
 - **Provider-agnostic `Gateway`** and dependency-free provider adapters
   (`HttpProvider`, `openai_chat_provider`).
-- **Local HTTP daemon** (`censorbot serve`, loopback-only, stdlib only).
+- **Local HTTP daemon** (`blotch serve`, loopback-only, stdlib only).
 - **Regenerated document output** (TXT/DOCX/PDF) verified on read-back —
   regenerate-don't-edit, so no un-sanitised layer can survive.
-- **Visual review preview** (`censorbot review` → standalone HTML).
-- **Re-identification-risk advisory** (`censorbot risk`) for residual
+- **Visual review preview** (`blotch review` → standalone HTML).
+- **Re-identification-risk advisory** (`blotch risk`) for residual
   quasi-identifiers.
 - **Custom policies** via `--policy-file` / `policy_from_dict`.
-- **Benchmark harness** (`censorbot benchmark`) and CI gating on leak rate.
+- **Benchmark harness** (`blotch benchmark`) and CI gating on leak rate.
 
 ### spaCy NER + a guaranteed no-leak sweep
 - spaCy NER is now **unioned** with the heuristic (not substituted): the

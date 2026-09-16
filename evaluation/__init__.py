@@ -1,4 +1,4 @@
-"""Evaluation subsystem for censorbot.
+"""Evaluation subsystem for blotch.
 
 * :mod:`.synth` - generates synthetic documents with **ground-truth PII spans**
   (the only way to compute real precision/recall/F1), including a bank of hard

@@ -1,6 +1,6 @@
-"""Enable ``python -m censorbot ...``.
+"""Enable ``python -m blotch ...``.
 
-Lets the CLI run without the ``censorbot`` console script being on PATH - handy
+Lets the CLI run without the ``blotch`` console script being on PATH - handy
 on Windows, where pip's Scripts directory is often not on PATH.
 """
 

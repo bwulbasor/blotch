@@ -11,8 +11,8 @@ import types
 
 import pytest
 
-from censorbot.detectors import ner
-from censorbot.spans import EntityType
+from blotch.detectors import ner
+from blotch.spans import EntityType
 
 
 class _Ent:

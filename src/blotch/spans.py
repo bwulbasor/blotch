@@ -14,7 +14,7 @@ from enum import Enum
 class EntityType(str, Enum):
     """Canonical sensitive-entity categories.
 
-    Values double as the ``TYPE`` portion of a token (see :mod:`censorbot.tokens`),
+    Values double as the ``TYPE`` portion of a token (see :mod:`blotch.tokens`),
     so they must be uppercase ``[A-Z_]+`` with no digits.
     """
 

@@ -1,6 +1,6 @@
 import pytest
 
-from censorbot.cli import main
+from blotch.cli import main
 
 pytest.importorskip("cryptography")
 

@@ -18,7 +18,7 @@ import urllib.request
 _HERE = os.path.dirname(__file__)
 _ROOT = os.path.abspath(os.path.join(_HERE, ".."))
 CORPUS_DIR = os.path.join(_ROOT, "corpus")
-_UA = {"User-Agent": "censorbot-eval/0.1 (research; local PII-detection testing)"}
+_UA = {"User-Agent": "blotch-eval/0.1 (research; local PII-detection testing)"}
 
 
 def _get(url: str, timeout: float = 60.0) -> str:

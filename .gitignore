@@ -14,7 +14,7 @@ venv/
 .mypy_cache/
 .ruff_cache/
 
-# censorbot secrets — never commit vaults or sanitized artifacts
+# blotch secrets — never commit vaults or sanitized artifacts
 *.cbv
 *.vault
 vault.json

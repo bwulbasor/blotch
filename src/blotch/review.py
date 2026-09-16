@@ -42,7 +42,7 @@ _PICK_TYPES = [
 
 
 def render_review_html(text: str, policy: Policy, *, use_spacy: bool = True,
-                       title: str = "censorbot review") -> str:
+                       title: str = "blotch review") -> str:
     """Return a standalone interactive review/tagging page with a mapping table."""
 
     result = sanitize(text, policy, use_spacy=use_spacy)
@@ -137,7 +137,7 @@ _TEMPLATE = """<!doctype html>
   footer {{ text-align:center; color:#888; font-size:12px; padding:18px; }}
 </style></head><body>
 <header>
-  <h1>censorbot review</h1>
+  <h1>blotch review</h1>
   <span><span class="count" id="mcount">0</span> to mask · policy <strong>{policy}</strong></span>
   <span id="kept-note" class="kept-note"></span>
   <span class="spacer"></span>

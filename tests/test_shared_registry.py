@@ -1,6 +1,6 @@
-from censorbot import get_policy, sanitize
-from censorbot.tokens import TokenRegistry, find_tokens
-from censorbot.vault import Vault
+from blotch import get_policy, sanitize
+from blotch.tokens import TokenRegistry, find_tokens
+from blotch.vault import Vault
 
 
 def _person_token(text):

@@ -1,7 +1,7 @@
 import re
 
-from censorbot.policy import get_policy
-from censorbot.review import render_review_html
+from blotch.policy import get_policy
+from blotch.review import render_review_html
 
 TEXT = "Alejandro Martinez, patient 48392017, a.martinez@example.com."
 

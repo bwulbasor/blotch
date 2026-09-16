@@ -20,9 +20,9 @@ import os
 import time
 from collections import Counter
 
-from censorbot import get_policy, sanitize
-from censorbot.detectors import detect_all
-from censorbot.spans import resolve_overlaps
+from blotch import get_policy, sanitize
+from blotch.detectors import detect_all
+from blotch.spans import resolve_overlaps
 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 CORPUS_DIR = os.path.join(_ROOT, "corpus")

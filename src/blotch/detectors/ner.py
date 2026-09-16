@@ -1,6 +1,6 @@
 """Layer B: named-entity detection for contextual entities (PERSON, ORG, ...).
 
-Uses spaCy when installed (``pip install 'censorbot[ner]'``), otherwise a
+Uses spaCy when installed (``pip install 'blotch[ner]'``), otherwise a
 dependency-free heuristic fallback so the pipeline still runs everywhere. The
 fallback is intentionally high-recall / lower-precision: for a privacy gateway a
 false positive is an annoyance, a false negative is a leak (plan §4). The review

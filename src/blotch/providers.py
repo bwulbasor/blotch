@@ -1,4 +1,4 @@
-"""Provider adapters: connect the :class:`~censorbot.gateway.Gateway` to real
+"""Provider adapters: connect the :class:`~blotch.gateway.Gateway` to real
 services (plan §12/§13). A provider is any ``str -> str`` callable, so the gateway
 stays agnostic; these are convenience adapters, all dependency-free (stdlib only).
 
@@ -45,7 +45,7 @@ class HttpProvider:
         ``None``, the whole response body is returned as text.
     headers:
         Extra request headers (e.g. ``{"Authorization": "Bearer …"}``). Supply
-        secrets yourself; censorbot does not store them.
+        secrets yourself; blotch does not store them.
     timeout:
         Seconds.
     """

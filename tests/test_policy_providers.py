@@ -4,9 +4,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 
-from censorbot import Action, EntityType, sanitize
-from censorbot.policy import load_policy_file, policy_from_dict
-from censorbot.providers import HttpProvider, openai_chat_provider
+from blotch import Action, EntityType, sanitize
+from blotch.policy import load_policy_file, policy_from_dict
+from blotch.providers import HttpProvider, openai_chat_provider
 
 
 def test_custom_policy_from_dict():

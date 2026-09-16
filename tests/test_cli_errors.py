@@ -1,4 +1,4 @@
-from censorbot.cli import main
+from blotch.cli import main
 
 
 def test_missing_file_clean_error(capsys):

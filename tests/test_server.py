@@ -5,7 +5,7 @@ from http.server import ThreadingHTTPServer
 
 import pytest
 
-from censorbot.server import _Handler
+from blotch.server import _Handler
 
 
 @pytest.fixture()
@@ -44,7 +44,7 @@ def test_web_ui_served(base_url):
     with urllib.request.urlopen(base_url + "/", timeout=5) as resp:
         assert resp.headers.get_content_type() == "text/html"
         html = resp.read().decode()
-    assert "<title>censorbot</title>" in html
+    assert "<title>blotch</title>" in html
     assert "/sanitize" in html  # the UI calls the JSON API
 
 

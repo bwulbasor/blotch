@@ -25,7 +25,7 @@ def fetch(n: int = 2000) -> str:
     offset = 0
     while len(out) < n and offset < n * 4:
         url = f"{_API}&offset={offset}&length=100"
-        req = urllib.request.Request(url, headers={"User-Agent": "censorbot-eval/0.1"})
+        req = urllib.request.Request(url, headers={"User-Agent": "blotch-eval/0.1"})
         with urllib.request.urlopen(req, timeout=60) as resp:
             rows = json.loads(resp.read().decode("utf-8")).get("rows", [])
         if not rows:

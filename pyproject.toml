@@ -3,18 +3,18 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "censorbot"
+name = "blotch"
 version = "0.1.0"
 description = "A local privacy gateway: reversible pseudonymisation between your sensitive documents and external AI/services."
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "Apache-2.0" }
-authors = [{ name = "censorbot contributors" }]
+license = { text = "MIT" }
+authors = [{ name = "blotch contributors" }]
 keywords = ["privacy", "pii", "pseudonymisation", "redaction", "llm", "gdpr", "phi"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: Apache Software License",
+    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Topic :: Security",
 ]
@@ -28,13 +28,13 @@ all = ["cryptography>=42", "spacy>=3.7", "pypdf>=4", "python-docx>=1.1", "report
 dev = ["pytest>=8", "cryptography>=42"]
 
 [project.scripts]
-censorbot = "censorbot.cli:main"
+blotch = "blotch.cli:main"
 
 [project.urls]
-Repository = "https://github.com/bwulbasor/censorbot"
+Repository = "https://github.com/bwulbasor/blotch"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/censorbot"]
+packages = ["src/blotch"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

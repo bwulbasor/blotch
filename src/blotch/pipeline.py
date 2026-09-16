@@ -66,7 +66,7 @@ def sanitize(text: str, policy: Policy, *, use_ner: bool = True,
              vault: Vault | None = None, registry=None) -> SanitizeResult:
     """Pseudonymise ``text`` under ``policy``. Returns a :class:`SanitizeResult`.
 
-    Pass a shared :class:`~censorbot.tokens.TokenRegistry` (and a shared ``vault``)
+    Pass a shared :class:`~blotch.tokens.TokenRegistry` (and a shared ``vault``)
     across several documents to give the same entity the same token in all of them
     (opt-in cross-document consistency).
     """

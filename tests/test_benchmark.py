@@ -1,5 +1,5 @@
-from censorbot.benchmark import run_benchmark
-from censorbot.policy import get_policy
+from blotch.benchmark import run_benchmark
+from blotch.policy import get_policy
 
 
 def test_benchmark_no_leaks_on_maximum():

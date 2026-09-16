@@ -34,7 +34,7 @@ MAX_BODY = 32 * 1024 * 1024  # 32 MiB (base64-encoded PDF uploads)
 
 
 class _Handler(BaseHTTPRequestHandler):
-    server_version = "censorbot"
+    server_version = "blotch"
 
     # -- helpers -----------------------------------------------------------
     def _send(self, code: int, payload: dict) -> None:
@@ -170,7 +170,7 @@ def _restore(data: dict) -> dict:
 
 _UI_HTML = """<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>censorbot</title><style>
+<title>blotch</title><style>
  :root{color-scheme:light dark}
  body{font:15px/1.5 system-ui,sans-serif;max-width:900px;margin:0 auto;padding:20px;
    background:#fafafa;color:#1a1a1a}
@@ -188,7 +188,7 @@ _UI_HTML = """<!doctype html><html lang="en"><head><meta charset="utf-8">
  .ok{color:#1e7d33;font-weight:700} .bad{color:#9a031e;font-weight:700}
  .chip{display:inline-block;font-size:12px;padding:2px 8px;border-radius:20px;background:#218380;color:#fff;margin:2px}
 </style></head><body>
-<h1>censorbot</h1>
+<h1>blotch</h1>
 <p class="sub">Local privacy gateway. Text is processed on this machine; only the
 sanitized version is shown for you to copy. Nothing is sent anywhere.</p>
 <div class="row">
@@ -269,7 +269,7 @@ def serve(host: str = "127.0.0.1", port: int = 8723) -> None:
     """Run the daemon until interrupted. Loopback-only by default."""
 
     httpd = ThreadingHTTPServer((host, port), _Handler)
-    print(f"censorbot gateway on http://{host}:{port} (local only) - open it in a browser")
+    print(f"blotch gateway on http://{host}:{port} (local only) - open it in a browser")
     print("endpoints: GET / (web UI) /policies /health ; POST /inspect /sanitize /restore")
     try:
         httpd.serve_forever()

@@ -3,7 +3,7 @@ model — it paraphrases and reformats the tokens (spaces, markdown, escapes).""
 
 import re
 
-from censorbot import Gateway, get_policy
+from blotch import Gateway, get_policy
 
 DOC = (
     "DISCHARGE SUMMARY\n"

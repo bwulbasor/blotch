@@ -63,7 +63,7 @@ def _write_docx(path: str, text: str) -> None:
         import docx
     except Exception as exc:  # pragma: no cover - optional dep
         raise RuntimeError(
-            "DOCX output needs the optional 'docs' extra: pip install 'censorbot[docs]'"
+            "DOCX output needs the optional 'docs' extra: pip install 'blotch[docs]'"
         ) from exc
     document = docx.Document()  # a brand-new document, no inherited metadata
     for line in text.split("\n"):

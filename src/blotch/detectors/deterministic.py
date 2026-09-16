@@ -1,7 +1,7 @@
 """Layer A: deterministic pattern detectors.
 
 Fast, dependency-free, and (where a checksum exists) high precision. Each
-detector yields :class:`~censorbot.spans.Span` objects. These run first and
+detector yields :class:`~blotch.spans.Span` objects. These run first and
 essentially instantly.
 
 Locale note: dates / phones / national IDs vary by country. We validate what is

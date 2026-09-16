@@ -1,8 +1,8 @@
-"""Evaluate censorbot against an English sample of AI4Privacy pii-masking-200k.
+"""Evaluate blotch against an English sample of AI4Privacy pii-masking-200k.
 
 AI4Privacy is synthetic but has broad, gold-annotated PII spans - especially the
 contact/financial types (email, phone, card, IP) that the legal TAB set lacks.
-We report recall per label, split into the types censorbot *targets* (its
+We report recall per label, split into the types blotch *targets* (its
 headline claim) and the ones it does not (device IDs, passwords, demographics,
 job/appearance attributes - out of scope / quasi).
 
@@ -16,12 +16,12 @@ import json
 import os
 from collections import defaultdict
 
-from censorbot.detectors import detect_all
-from censorbot.spans import resolve_overlaps
+from blotch.detectors import detect_all
+from blotch.spans import resolve_overlaps
 
 _HERE = os.path.dirname(__file__)
 
-# AI4Privacy labels censorbot claims to detect (recall counts against these).
+# AI4Privacy labels blotch claims to detect (recall counts against these).
 TARGETED = {
     "EMAIL", "PHONENUMBER", "FIRSTNAME", "LASTNAME", "MIDDLENAME",
     "IP", "IPV4", "IPV6", "CREDITCARDNUMBER", "DATE", "DOB",

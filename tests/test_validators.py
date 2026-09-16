@@ -1,4 +1,4 @@
-from censorbot.detectors.validators import iban_valid, luhn_valid
+from blotch.detectors.validators import iban_valid, luhn_valid
 
 
 def test_luhn_valid_card():

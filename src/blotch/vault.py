@@ -10,7 +10,7 @@ as the crown jewels:
   when a passphrase is supplied and the optional ``cryptography`` extra is
   installed. Without a passphrase the vault refuses to write plaintext unless you
   explicitly pass ``allow_plaintext=True``.
-* Only tokens the vault *issued* are ever rehydrated (see :mod:`censorbot.rehydrate`).
+* Only tokens the vault *issued* are ever rehydrated (see :mod:`blotch.rehydrate`).
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ from .resolver import Entity
 from .spans import EntityType
 from .tokens import make_token
 
-VAULT_MAGIC = "censorbot.vault"
+VAULT_MAGIC = "blotch.vault"
 VAULT_VERSION = 1
 
 
@@ -90,7 +90,7 @@ class Vault:
     @classmethod
     def from_dict(cls, data: dict) -> "Vault":
         if data.get("magic") != VAULT_MAGIC:
-            raise ValueError("not a censorbot vault")
+            raise ValueError("not a blotch vault")
         v = cls(session_id=data.get("session_id"))
         for e in data.get("entries", []):
             occ = [tuple(o) for o in e.get("occurrences", [])]
@@ -121,7 +121,7 @@ class Vault:
         with open(path, encoding="utf-8") as fh:
             envelope = json.load(fh)
         if envelope.get("magic") != VAULT_MAGIC:
-            raise ValueError("not a censorbot vault file")
+            raise ValueError("not a blotch vault file")
         if envelope.get("encrypted"):
             if not passphrase:
                 raise ValueError("vault is encrypted; a passphrase is required")
@@ -144,7 +144,7 @@ def _require_crypto():
         from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
     except Exception as exc:  # pragma: no cover - depends on optional extra
         raise RuntimeError(
-            "encryption needs the optional 'crypto' extra: pip install 'censorbot[crypto]'"
+            "encryption needs the optional 'crypto' extra: pip install 'blotch[crypto]'"
         ) from exc
     return AESGCM, Scrypt
 

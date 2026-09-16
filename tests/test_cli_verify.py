@@ -1,4 +1,4 @@
-from censorbot.cli import main
+from blotch.cli import main
 
 
 def test_verify_flags_residual_pii(tmp_path):

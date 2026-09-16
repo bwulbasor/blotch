@@ -13,9 +13,9 @@ try:
 except Exception:  # pragma: no cover - model not downloaded
     pytest.skip("en_core_web_sm not installed", allow_module_level=True)
 
-from censorbot import get_policy, sanitize
-from censorbot.detectors import ner
-from censorbot.spans import EntityType
+from blotch import get_policy, sanitize
+from blotch.detectors import ner
+from blotch.spans import EntityType
 
 
 def test_spacy_union_keeps_heuristic_recall():
@@ -41,5 +41,5 @@ def test_spacy_inconsistent_typing_does_not_leak():
 def test_spacy_round_trips():
     text = "Ada Lovelace worked with Charles Babbage in London in 1843."
     r = sanitize(text, get_policy("maximum"), use_spacy=True)
-    from censorbot import restore
+    from blotch import restore
     assert restore(r.sanitized_text, r.vault).text == text

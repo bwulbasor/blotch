@@ -1,4 +1,4 @@
-"""Evaluate censorbot against the Text Anonymization Benchmark (TAB).
+"""Evaluate blotch against the Text Anonymization Benchmark (TAB).
 
 TAB is 1,268 real European Court of Human Rights judgments with gold, manually
 annotated spans, each labelled DIRECT / QUASI / NO_MASK. This is a *real*
@@ -6,7 +6,7 @@ external benchmark - not our own synthetic data - so the numbers here are the
 honest measure of how well detection works on real documents.
 
 The headline metric is **DIRECT recall**: of the spans a human marked as direct
-identifiers (names, case codes, ...), how many does censorbot cover? A missed
+identifiers (names, case codes, ...), how many does blotch cover? A missed
 DIRECT span is a real leak. We also report QUASI recall and precision.
 
     python -m benchmarks.tab_eval [--spacy] [--split test|dev] [--limit N]
@@ -19,8 +19,8 @@ import json
 import os
 from collections import defaultdict
 
-from censorbot.detectors import detect_all
-from censorbot.spans import resolve_overlaps
+from blotch.detectors import detect_all
+from blotch.spans import resolve_overlaps
 
 _HERE = os.path.dirname(__file__)
 

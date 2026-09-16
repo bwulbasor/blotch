@@ -1,5 +1,5 @@
-from censorbot.detectors import deterministic
-from censorbot.spans import EntityType
+from blotch.detectors import deterministic
+from blotch.spans import EntityType
 
 
 def _types(text):
@@ -54,7 +54,7 @@ def test_address_no_false_positive_on_plain_numbers():
 
 
 def test_us_zip_and_bic():
-    from censorbot.spans import resolve_overlaps
+    from blotch.spans import resolve_overlaps
     def vals(t):
         return {s.value for s in resolve_overlaps(deterministic.detect(t))}
     assert "IL 62704" in vals("Office at Springfield, IL 62704 now")
@@ -64,7 +64,7 @@ def test_us_zip_and_bic():
 
 
 def test_gazetteer_locations():
-    from censorbot.detectors import gazetteer
+    from blotch.detectors import gazetteer
     vals = {(s.entity_type, s.value) for s in gazetteer.detect(
         "She moved from Vienna to New York, then to Japan.")}
     assert (EntityType.LOCATION, "Vienna") in vals
@@ -91,7 +91,7 @@ def test_mac_not_confused_with_ipv6():
     spans = deterministic.detect("mac 01:23:45:67:89:ab here")
     macs = [s for s in spans if s.entity_type == EntityType.MAC]
     # after overlap resolution MAC must win over the IPv6-shaped match
-    from censorbot.spans import resolve_overlaps
+    from blotch.spans import resolve_overlaps
     kept = resolve_overlaps(deterministic.detect("mac 01:23:45:67:89:ab"))
     assert any(s.entity_type == EntityType.MAC for s in kept)
     assert macs
@@ -121,7 +121,7 @@ def test_short_month_date_not_case_id():
 
 
 def test_name_particles_kept_whole():
-    from censorbot.detectors import ner
+    from blotch.detectors import ner
     def persons(t):
         return {s.value for s in ner.detect(t, use_spacy=False)
                 if s.entity_type == EntityType.PERSON}
@@ -131,8 +131,8 @@ def test_name_particles_kept_whole():
 
 
 def test_city_typed_as_location_not_person():
-    from censorbot import get_policy, sanitize
-    from censorbot.tokens import find_tokens
+    from blotch import get_policy, sanitize
+    from blotch.tokens import find_tokens
     r = sanitize("The meeting is in Berlin next week.", get_policy("maximum"),
                  use_spacy=False)
     types = {t[1] for t in find_tokens(r.sanitized_text)}

@@ -1,4 +1,4 @@
-from censorbot.reidrisk import RiskLevel, assess
+from blotch.reidrisk import RiskLevel, assess
 
 
 def test_no_quasi_identifiers_is_none():

@@ -1,6 +1,6 @@
-from censorbot import get_policy, restore, sanitize
-from censorbot.pipeline import preview
-from censorbot.tokens import TOKEN_RE
+from blotch import get_policy, restore, sanitize
+from blotch.pipeline import preview
+from blotch.tokens import TOKEN_RE
 
 SAMPLE = (
     "Alejandro Martinez was admitted to Vienna General Hospital on 14 March 2026. "
@@ -82,7 +82,7 @@ def test_empty_and_no_entity_text():
 
 
 def test_redact_propagates_all_occurrences():
-    from censorbot.policy import policy_from_dict
+    from blotch.policy import policy_from_dict
     p = policy_from_dict({"name": "r", "default": "keep",
                           "actions": {"PERSON": "redact"}})
     text = "Curie won it. Later, Curie spoke. Marie Curie was cited."

@@ -1,7 +1,7 @@
 import pytest
 
-from censorbot import get_policy, sanitize
-from censorbot.vault import Vault
+from blotch import get_policy, sanitize
+from blotch.vault import Vault
 
 crypto = pytest.importorskip("cryptography")
 

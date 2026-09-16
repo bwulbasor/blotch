@@ -6,7 +6,7 @@ deliberate anti-leak decision (see README): regeneration cannot carry forward a
 hidden text layer, annotation, form field, metadata entry, or embedded file that
 in-place redaction would miss.
 
-PDF/DOCX support is optional (``pip install 'censorbot[docs]'``); ``.txt`` always
+PDF/DOCX support is optional (``pip install 'blotch[docs]'``); ``.txt`` always
 works. For a scanned PDF with no text layer, OCR would slot in here as a separate
 step - out of scope for the MVP, which targets documents that already have text.
 """
@@ -68,7 +68,7 @@ def _load_pdf(path: str) -> str:  # pragma: no cover - optional dependency
         from pypdf import PdfReader
     except Exception as exc:
         raise RuntimeError(
-            "PDF support needs the optional 'docs' extra: pip install 'censorbot[docs]'"
+            "PDF support needs the optional 'docs' extra: pip install 'blotch[docs]'"
         ) from exc
     reader = PdfReader(path)
     return "\n".join((page.extract_text() or "") for page in reader.pages)
@@ -79,7 +79,7 @@ def _load_docx(path: str) -> str:  # pragma: no cover - optional dependency
         import docx
     except Exception as exc:
         raise RuntimeError(
-            "DOCX support needs the optional 'docs' extra: pip install 'censorbot[docs]'"
+            "DOCX support needs the optional 'docs' extra: pip install 'blotch[docs]'"
         ) from exc
     document = docx.Document(path)
     return "\n".join(p.text for p in document.paragraphs)
