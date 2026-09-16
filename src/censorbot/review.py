@@ -50,7 +50,11 @@ def render_review_html(text: str, policy: Policy, *, use_spacy: bool = True,
     for start, end, replacement in result.edit_spans:
         parsed = parse_token(replacement)
         etype = parsed[0] if parsed else "REDACT"
-        auto_spans.append({"start": start, "end": end, "type": etype})
+        # carry the pipeline's token so co-reference (same entity -> same token,
+        # via resolution + propagation) is preserved in the page, instead of being
+        # re-derived by exact surface value.
+        auto_spans.append({"start": start, "end": end, "type": etype,
+                           "token": replacement})
 
     risk = assess(result.sanitized_text)
     leak_clean = result.leak_report.clean if result.leak_report else True
@@ -137,6 +141,12 @@ _TEMPLATE = """<!doctype html>
   <span><span class="count" id="mcount">0</span> to mask · policy <strong>{policy}</strong></span>
   <span id="kept-note" class="kept-note"></span>
   <span class="spacer"></span>
+  <label>Mode
+    <select id="mode" title="how to censor">
+      <option value="semantic" selected>Semantic (reversible tokens)</option>
+      <option value="total">Total redaction ([REDACTED])</option>
+      <option value="blackout">Blackout (████)</option>
+    </select></label>
   <button id="toktoggle">Tokens inline</button>
   <button id="copy" class="primary">Copy sanitized</button>
 </header>
@@ -147,8 +157,9 @@ points to. Everything stays in this page.</div>
 <div class="wrap">
   <div class="doc" id="doc"></div>
   <div class="panel">
-    <h3>Mapping — token → original <span id="mapn" style="color:#888;font-weight:400"></span></h3>
-    <table><thead><tr><th>Token</th><th>Points to</th><th>Type</th></tr></thead>
+    <h3 id="maptitle">Mapping — token → original <span id="mapn" style="color:#888;font-weight:400"></span></h3>
+    <div id="revnote" style="font-size:12px;margin-bottom:6px"></div>
+    <table><thead><tr><th id="thtok">Token</th><th>Original</th><th>Type</th></tr></thead>
       <tbody id="maprows"></tbody></table>
   </div>
 </div>
@@ -168,26 +179,45 @@ points to. Everything stays in this page.</div>
   const esc = s => s.replace(/[&<>]/g,c=>({{'&':'&amp;','<':'&lt;','>':'&gt;'}}[c]));
   const pad = n => String(n).padStart(3,'0');
 
-  // Assign a token per active (non-kept) span; same (type,value) -> same token.
+  const norm = v => v.trim().toLowerCase().replace(/\\s+/g,' ');
+  function mode() {{ return document.getElementById('mode').value; }}
+
+  // Assign a token per active (non-kept) span. Auto spans keep the pipeline's
+  // token (co-reference preserved: same entity -> same token). User tags reuse an
+  // existing token for the same (type,value) or get a fresh one. In "total" /
+  // "blackout" mode the value is not recoverable, so the mapping is not reversible.
   function computeTokens() {{
     const act = state.spans.filter(s=>!s.kept).slice().sort((a,b)=>a.start-b.start);
-    const counters={{}}, map={{}}, rows=[], spanTok=new Map();
+    const m = mode();
+    const counters={{}}, map={{}}, rows=[], spanTok=new Map(), seenTok={{}};
+    // seed the (type,value)->token map and per-type counters from auto tokens
+    for (const s of state.spans) {{
+      if (s.kept || s.user || !s.token) continue;
+      const key = s.type + '|' + norm(ORIGINAL.slice(s.start, s.end));
+      if (!map[key]) map[key] = s.token;
+      const mm = /_(\\d+)\\]\\]$/.exec(s.token);
+      if (mm) counters[s.type] = Math.max(counters[s.type]||0, +mm[1]);
+    }}
     let pos=-1;
     for (const s of act) {{
       if (s.start < pos) {{ spanTok.set(s,null); continue; }}
       const val = ORIGINAL.slice(s.start, s.end);
       let tok;
-      if (s.type === 'REDACT') tok = '[REDACTED]';
+      if (m === 'total' || s.type === 'REDACT') tok = '[REDACTED]';
+      else if (m === 'blackout') tok = '█'.repeat(Math.min(val.replace(/\\s/g,'').length||1, 16));
       else {{
-        const key = s.type + '|' + val.trim().toLowerCase().replace(/\\s+/g,' ');
+        const key = s.type + '|' + norm(val);
         if (map[key]) tok = map[key];
         else {{ counters[s.type] = (counters[s.type]||0)+1;
-          tok = '[[' + s.type + '_' + pad(counters[s.type]) + ']]'; map[key] = tok;
-          rows.push({{token: tok, value: val, type: s.type}}); }}
+          tok = '[[' + s.type + '_' + pad(counters[s.type]) + ']]'; map[key] = tok; }}
       }}
-      spanTok.set(s, tok); pos = s.end;
+      spanTok.set(s, tok);
+      // one mapping row per token (semantic) or per distinct value (total/blackout)
+      const dk = (m === 'semantic') ? tok : (tok + '|' + norm(val));
+      if (!seenTok[dk]) {{ seenTok[dk]=1; rows.push({{token: tok, value: val, type: s.type}}); }}
+      pos = s.end;
     }}
-    return {{spanTok, rows}};
+    return {{spanTok, rows, reversible: (m === 'semantic')}};
   }}
 
   function render() {{
@@ -214,6 +244,14 @@ points to. Everything stays in this page.</div>
       + `<td>${{esc(r.value)}}</td><td>${{esc(r.type)}}</td></tr>`).join('')
       || '<tr><td colspan=3 style="color:#888">nothing masked</td></tr>';
     document.getElementById('mapn').textContent = '(' + rows.length + ')';
+    // reversibility note per mode
+    const rev = mode() === 'semantic';
+    document.getElementById('thtok').textContent = rev ? 'Token' : 'Becomes';
+    document.getElementById('maptitle').firstChild.textContent =
+      rev ? 'Mapping — token → original ' : 'Removed values (not reversible) ';
+    document.getElementById('revnote').innerHTML = rev
+      ? '<span style="color:#1e7d33">Reversible</span> — restore the original later with this table.'
+      : '<span style="color:#9a031e">Not reversible</span> — the originals cannot be recovered.';
     const masked = state.spans.filter(s=>!s.kept).length;
     const kept = state.spans.filter(s=>s.kept).length;
     document.getElementById('mcount').textContent = masked;
@@ -277,6 +315,7 @@ points to. Everything stays in this page.</div>
     return out + ORIGINAL.slice(pos);
   }}
 
+  document.getElementById('mode').onchange = render;
   document.getElementById('toktoggle').onclick = (e) => {{
     document.body.classList.toggle('showtok');
     e.target.classList.toggle('on', document.body.classList.contains('showtok'));

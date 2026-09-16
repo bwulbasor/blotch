@@ -129,6 +129,15 @@ _NON_NAME = {w.lower() for w in _STOPWORDS} | {
     "legal", "justice", "directorate", "terrorism", "reports", "report",
     "judgments", "judgements", "lawyer", "lawyers", "public", "common",
     "employment", "district", "districts",
+    # pure adverbs / conjunctions that can open a line before a name ("Also
+    # Alejandro ...") - trimming them from run ends keeps the name a single entity
+    # (fixes coreference: "Also Alejandro" -> "Alejandro").
+    "also", "then", "thus", "hence", "therefore", "however", "meanwhile",
+    "moreover", "furthermore", "nevertheless", "nonetheless", "subsequently",
+    "additionally", "finally", "similarly", "likewise", "otherwise",
+    "accordingly", "consequently", "indeed", "instead", "besides", "conversely",
+    "namely", "notably", "whereas", "whilst", "regardless", "alternatively",
+    "later", "meanwhile", "afterwards", "thereafter", "henceforth",
     "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
     # month and weekday names (part of dates via the date detector; a lone one is
     # not a person name)
