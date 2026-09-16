@@ -115,8 +115,13 @@ part that takes the work, and it is also why the human review screen exists. The
 machine does most of the work and a person clicks the last few in a couple of
 seconds.
 
-**One honest catch:** it reads text, so a scanned PDF that is really just a
-picture with no text layer needs OCR added first, and that is not built in yet.
+**Scanned documents:** a scanned PDF is just a picture of a page with no text
+to read. blotch now has an optional OCR layer for exactly this: install an OCR
+engine and it renders each page and reads the text off the image automatically,
+falling back to it only when a PDF has no real text layer. Without an engine
+installed, everything else works as before and a scan simply comes back empty.
+OCR text is a best-effort transcription and can contain recognition errors, so
+the review screen matters even more for scanned input.
 
 ---
 

@@ -24,7 +24,12 @@ dependencies = []
 crypto = ["cryptography>=42"]
 ner = ["spacy>=3.7"]
 docs = ["pypdf>=4", "python-docx>=1.1", "reportlab>=4"]
-all = ["cryptography>=42", "spacy>=3.7", "pypdf>=4", "python-docx>=1.1", "reportlab>=4"]
+# OCR fallback for scanned / image-only PDFs. PyMuPDF renders pages; the
+# recognition engine is either the system Tesseract (via pytesseract) or the
+# pip-only rapidocr-onnxruntime - install one. Pillow decodes the rendered pages.
+ocr = ["pymupdf>=1.24", "pillow>=10", "pytesseract>=0.3.10"]
+all = ["cryptography>=42", "spacy>=3.7", "pypdf>=4", "python-docx>=1.1",
+       "reportlab>=4", "pymupdf>=1.24", "pillow>=10", "pytesseract>=0.3.10"]
 dev = ["pytest>=8", "cryptography>=42"]
 
 [project.scripts]

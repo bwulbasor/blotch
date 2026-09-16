@@ -87,11 +87,16 @@ pip install -e .                 # core (pure stdlib, zero required deps)
 pip install -e '.[crypto]'       # encrypted vault at rest (AES-256-GCM)
 pip install -e '.[ner]' && python -m spacy download en_core_web_sm   # spaCy NER
 pip install -e '.[docs]'         # PDF + DOCX ingestion and regenerated output
+pip install -e '.[ocr]'          # OCR fallback for scanned PDFs (+ an engine below)
 pip install -e '.[all,dev]'      # everything + pytest
 ```
 
 The core runs with **no third-party dependencies**. Encryption, spaCy, and
-PDF/DOCX are optional extras that degrade gracefully when absent.
+PDF/DOCX are optional extras that degrade gracefully when absent. The `ocr`
+extra renders pages with PyMuPDF but still needs a recognition engine: either the
+system **Tesseract** binary (with `pytesseract`, from the extra) or the pip-only
+**`rapidocr-onnxruntime`** (no system binary). With neither installed, a scanned
+PDF simply returns empty text instead of crashing.
 
 ## CLI
 

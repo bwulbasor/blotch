@@ -5,6 +5,17 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### OCR layer for scanned PDFs
+- New optional `blotch.ingest.ocr` module: a scanned / image-only PDF has no
+  text layer, so the loaders now fall back to OCR automatically when the text
+  layer looks empty and an engine is available. Pages are rendered with PyMuPDF
+  and read with either the system Tesseract (via `pytesseract`) or the pip-only
+  `rapidocr-onnxruntime`, whichever is installed. Enable with
+  `pip install 'blotch[ocr]'` plus an engine; without one, behaviour is
+  unchanged (a scan comes back empty rather than crashing).
+- `load_text` / `extract_bytes` gained an `ocr` mode (`auto` / `never` /
+  `always`). OCR output is best-effort and can contain recognition errors.
+
 ### Added
 - **Core pipeline**: local detection → conservative entity resolution →
   reversible opaque tokenisation (`[[TYPE_NNN]]`) → outbound leak scan.
