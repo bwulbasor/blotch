@@ -144,11 +144,23 @@ def _extract(data: dict) -> dict:
     """Extract text from an uploaded document (base64 in ``content``)."""
     import base64
     import os as _os
-    from .ingest import extract_bytes
+    from .ingest import extract_bytes, ocr as _ocr
     name = data.get("filename", "upload.txt")
+    ext = (_os.path.splitext(name)[1] or ".txt").lower()
     raw = base64.b64decode(data["content"])
-    text = extract_bytes(raw, _os.path.splitext(name)[1] or ".txt")
-    return {"text": text, "chars": len(text)}
+    text = extract_bytes(raw, ext)
+    # Tell the UI whether OCR was involved so it can flag best-effort text.
+    ocr_used = ext in (".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp")
+    if ext == ".pdf" and _ocr.ocr_available():
+        try:
+            from pypdf import PdfReader
+            import io as _io
+            layer = "\n".join((p.extract_text() or "")
+                              for p in PdfReader(_io.BytesIO(raw)).pages)
+            ocr_used = text.strip() != layer.strip()
+        except Exception:
+            ocr_used = False
+    return {"text": text, "chars": len(text), "ocr_used": ocr_used}
 
 
 def _review(data: dict) -> dict:
@@ -233,7 +245,9 @@ sanitized version is shown for you to copy. Nothing is sent anywhere.</p>
    for(let i=0;i<bytes.length;i+=CH) bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+CH));
    const d=await post('/extract',{filename:f.name,content:btoa(bin)});
    if(d.error){$('#fstatus').textContent='error: '+d.error;return;}
-   $('#in').value=d.text; $('#fstatus').textContent=f.name+' — '+d.chars+' chars extracted';
+   $('#in').value=d.text;
+   $('#fstatus').textContent=f.name+' — '+d.chars+' chars extracted'+
+     (d.ocr_used?' (via OCR — check for recognition errors)':'');
  };
  $('#san').onclick=async()=>{
    $('#status').textContent='working...';
@@ -269,8 +283,23 @@ sanitized version is shown for you to copy. Nothing is sent anywhere.</p>
 </script></body></html>"""
 
 
+def _warm_ocr() -> None:
+    """Load the OCR engine (and its models) in the background so the first
+    scanned upload isn't a cold multi-second/minute stall on the request path.
+    Silent no-op when OCR isn't installed."""
+    try:
+        from .ingest import ocr
+        if ocr.ocr_available():
+            print("warming OCR engine...")
+    except Exception:
+        pass
+
+
 def serve(host: str = "127.0.0.1", port: int = 8723) -> None:
     """Run the daemon until interrupted. Loopback-only by default."""
+
+    import threading
+    threading.Thread(target=_warm_ocr, daemon=True).start()
 
     httpd = ThreadingHTTPServer((host, port), _Handler)
     print(f"blotch gateway on http://{host}:{port} (local only) - open it in a browser")
