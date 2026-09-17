@@ -118,20 +118,26 @@ def ocr_available() -> bool:
     return _engine() is not None
 
 
-def render_pdf_pages(data: bytes, dpi: int = _OCR_DPI):
-    """Yield one PNG image (bytes) per page of the in-memory PDF ``data``."""
+def render_pdf_pages(data: bytes, dpi: int = _OCR_DPI, indices=None):
+    """Yield ``(page_index, png_bytes)`` for the PDF ``data``.
+
+    ``indices`` limits rendering to a set/collection of 0-based page numbers,
+    so a mixed document only pays to rasterise the pages that actually need OCR.
+    """
 
     import fitz
 
+    want = None if indices is None else set(indices)
     zoom = dpi / 72.0
     matrix = fitz.Matrix(zoom, zoom)
     with fitz.open(stream=data, filetype="pdf") as doc:
-        for page in doc:
-            yield page.get_pixmap(matrix=matrix).tobytes("png")
+        for i, page in enumerate(doc):
+            if want is None or i in want:
+                yield i, page.get_pixmap(matrix=matrix).tobytes("png")
 
 
-def ocr_image(png: bytes) -> str:
-    """OCR a single image (PNG/JPEG bytes) to text."""
+def ocr_image(image: bytes) -> str:
+    """OCR a single image (PNG/JPEG/TIFF/... bytes) to text."""
 
     engine = _engine()
     if engine is None:
@@ -139,11 +145,15 @@ def ocr_image(png: bytes) -> str:
             "OCR needs an engine: install Tesseract, or "
             "pip install rapidocr-onnxruntime"
         )
-    return engine(png)
+    return engine(image)
 
 
-def ocr_pdf(data: bytes, dpi: int = _OCR_DPI) -> str:
-    """OCR every page of a scanned PDF and join the pages with newlines."""
+def ocr_pdf_pages(data: bytes, indices=None, dpi: int = _OCR_DPI) -> dict:
+    """OCR selected pages of ``data``; return ``{page_index: text}``.
+
+    With ``indices=None`` every page is OCR'd. Used for both whole-scan and
+    per-page hybrid recovery.
+    """
 
     try:
         import fitz  # noqa: F401
@@ -151,4 +161,11 @@ def ocr_pdf(data: bytes, dpi: int = _OCR_DPI) -> str:
         raise RuntimeError(
             "OCR needs page rendering: pip install 'blotch[ocr]'"
         ) from exc
-    return "\n".join(ocr_image(png) for png in render_pdf_pages(data, dpi))
+    return {i: ocr_image(png) for i, png in render_pdf_pages(data, dpi, indices)}
+
+
+def ocr_pdf(data: bytes, dpi: int = _OCR_DPI) -> str:
+    """OCR every page of a scanned PDF and join the pages with newlines."""
+
+    pages = ocr_pdf_pages(data, None, dpi)
+    return "\n".join(pages[i] for i in sorted(pages))

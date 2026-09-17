@@ -5,7 +5,7 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
-### OCR layer for scanned PDFs
+### OCR layer for scanned PDFs and images
 - New optional `blotch.ingest.ocr` module: a scanned / image-only PDF has no
   text layer, so the loaders now fall back to OCR automatically when the text
   layer looks empty and an engine is available. Pages are rendered with PyMuPDF
@@ -13,8 +13,23 @@ follows [Keep a Changelog](https://keepachangelog.com/).
   `rapidocr-onnxruntime`, whichever is installed. Enable with
   `pip install 'blotch[ocr]'` plus an engine; without one, behaviour is
   unchanged (a scan comes back empty rather than crashing).
+- **Per-page hybrid OCR**: in `auto` mode only the pages whose own text layer is
+  empty are OCR'd, and their text is spliced back in page order — so a mostly
+  digital PDF with a few scanned inserts only rasterises those inserts.
+- **Image uploads**: `.png/.jpg/.jpeg/.tif/.tiff/.bmp/.webp` are now supported
+  inputs (OCR-only), in the CLI, the loaders, and the daemon upload UI.
 - `load_text` / `extract_bytes` gained an `ocr` mode (`auto` / `never` /
   `always`). OCR output is best-effort and can contain recognition errors.
+- The daemon returns a friendly 400 (not a 500) when an optional dependency is
+  missing, e.g. an image upload with no OCR engine installed.
+
+### Precision on messy PDFs
+- The "all upper-case heading" guard now ignores stray single letters, so a
+  broken running header like `T HE CHIEF` is no longer read as a name.
+- Added law-report citation abbreviations (`Cir.`, `Assn.`, `Cf.`, `Supp.`, …)
+  to the NER stoplist. Benchmarks unchanged (TAB 100% direct recall / 95.4%
+  precision; AI4Privacy unchanged); false positives on a real SCOTUS opinion
+  dropped further with every real name preserved.
 
 ### Added
 - **Core pipeline**: local detection → conservative entity resolution →

@@ -71,3 +71,47 @@ def test_ocr_recovers_text_from_scan():
     # auto mode should detect the empty text layer and OCR it
     text = extract_bytes(data, ".pdf", ocr="auto")
     assert "Maria" in text and "Gomez" in text
+
+
+def _text_image(text: str) -> bytes:
+    """Render ``text`` to a PNG (a picture of the words, for image-upload tests)."""
+    fitz = pytest.importorskip("fitz")
+    doc = fitz.open()
+    page = doc.new_page()
+    page.insert_text((72, 100), text, fontsize=22)
+    return page.get_pixmap(matrix=fitz.Matrix(3, 3)).tobytes("png")
+
+
+def test_image_never_mode_returns_empty():
+    # an image has no text layer; ocr="never" yields nothing, no engine needed
+    png = _text_image("Ada Lovelace")
+    assert extract_bytes(png, ".png", ocr="never") == ""
+
+
+def test_image_upload_ocr():
+    if not ocr.ocr_available():
+        pytest.skip("no OCR engine installed")
+    png = _text_image("Ada Lovelace")
+    text = extract_bytes(png, ".png")  # auto -> OCR
+    assert "Ada" in text and "Lovelace" in text
+
+
+def test_hybrid_ocrs_only_the_scanned_page():
+    """A mixed PDF: a real text page plus an image-only page. The text page is
+    kept verbatim; the scanned page is recovered by OCR."""
+    if not ocr.ocr_available():
+        pytest.skip("no OCR engine installed")
+    fitz = pytest.importorskip("fitz")
+    # page 0: real text layer
+    doc = fitz.open()
+    p0 = doc.new_page()
+    p0.insert_text((72, 100), "Contact Bob Textlayer here", fontsize=18)
+    # page 1: an image of text, no text layer
+    img = _text_image("Scanned Carol Pixel")
+    p1 = doc.new_page()
+    p1.insert_image(p1.rect, stream=img)
+    data = doc.tobytes()
+
+    text = extract_bytes(data, ".pdf", ocr="auto")
+    assert "Bob Textlayer" in text        # native text preserved
+    assert "Carol" in text and "Pixel" in text  # scanned page OCR'd

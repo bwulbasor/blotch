@@ -135,6 +135,9 @@ _NON_NAME = {w.lower() for w in _STOPWORDS} | {
     # "Ibid"). Multi-word proper names ("Sherrod Brown") are unaffected.
     "democratic", "republican", "congressional", "senatorial", "per", "curiam",
     "ibid", "cite", "ante", "post", "supra", "certiorari", "stay",
+    # law-report / citation abbreviations that surface as lone capitalised
+    # fragments ("Cir.", "Assn.", "F. Supp."); none are ever a first name.
+    "cir", "assn", "cf", "seq", "vol", "rev", "supp",
     # pure adverbs / conjunctions that can open a line before a name ("Also
     # Alejandro ...") - trimming them from run ends keeps the name a single entity
     # (fixes coreference: "Also Alejandro" -> "Alejandro").
@@ -326,8 +329,12 @@ def _heuristic_detect(text: str) -> list[Span]:
         # This removes the dominant source of over-detection in technical
         # documents. The deterministic detectors still catch any actual PII.
         content_words = [r for r in run if not _is_title(r.group(0))]
-        if content_words and all(w.group(0).isupper() and len(w.group(0)) > 1
-                                 for w in content_words):
+        # Judge the "all upper-case heading" test on the multi-letter words only:
+        # a stray single upper-case letter is a PDF artifact or an initial
+        # ("T HE CHIEF" from a broken heading), and should not rescue the run
+        # from being recognised as a heading.
+        caps = [w for w in content_words if len(w.group(0)) > 1]
+        if caps and all(w.group(0).isupper() for w in caps):
             i = j
             continue
 

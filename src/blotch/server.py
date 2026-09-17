@@ -97,6 +97,10 @@ class _Handler(BaseHTTPRequestHandler):
             self._send(400, {"error": f"missing field: {exc}"})
         except ValueError as exc:
             self._send(400, {"error": str(exc)})
+        except RuntimeError as exc:
+            # optional dependency missing (e.g. an image upload with no OCR
+            # engine, or a PDF without the 'docs' extra) - report, don't 500.
+            self._send(400, {"error": str(exc)})
 
 
 def _inspect(data: dict) -> dict:
@@ -192,8 +196,8 @@ _UI_HTML = """<!doctype html><html lang="en"><head><meta charset="utf-8">
 <p class="sub">Local privacy gateway. Text is processed on this machine; only the
 sanitized version is shown for you to copy. Nothing is sent anywhere.</p>
 <div class="row">
- <label style="cursor:pointer">📄 Upload PDF / DOCX / TXT
-   <input type="file" id="file" accept=".pdf,.docx,.txt,.md,.csv" style="display:none"></label>
+ <label style="cursor:pointer">📄 Upload PDF / DOCX / TXT / image
+   <input type="file" id="file" accept=".pdf,.docx,.txt,.md,.csv,.png,.jpg,.jpeg,.tiff,.bmp,.webp" style="display:none"></label>
  <span id="fstatus" style="color:#888;font-size:13px"></span>
 </div>
 <textarea id="in" placeholder="Paste a document here, or upload one above..."></textarea>

@@ -17,7 +17,9 @@ from __future__ import annotations
 import io
 import os
 
-SUPPORTED = (".txt", ".md", ".text", ".csv", ".tsv", ".log", ".json", ".pdf", ".docx")
+_IMAGE = (".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp")
+SUPPORTED = (".txt", ".md", ".text", ".csv", ".tsv", ".log", ".json", ".pdf",
+             ".docx") + _IMAGE
 _PLAIN = (".txt", ".md", ".text", ".csv", ".tsv", ".log", ".json")
 
 # How the loaders treat OCR for scanned PDFs:
@@ -39,9 +41,9 @@ def load_text(path: str, ocr: str = "auto") -> str:
     if ext in _PLAIN:
         with open(path, encoding="utf-8", errors="replace") as fh:
             return fh.read()
-    if ext == ".pdf":
+    if ext == ".pdf" or ext in _IMAGE:
         with open(path, "rb") as fh:
-            return extract_bytes(fh.read(), ".pdf", ocr=ocr)
+            return extract_bytes(fh.read(), ext, ocr=ocr)
     if ext == ".docx":
         return _load_docx(path)
     raise ValueError(f"unsupported file type {ext!r}; supported: {', '.join(SUPPORTED)}")
@@ -59,6 +61,11 @@ def extract_bytes(data: bytes, ext: str, ocr: str = "auto") -> str:
         raise ValueError(f"ocr must be one of {_OCR_MODES}, got {ocr!r}")
     if ext in _PLAIN:
         return data.decode("utf-8", errors="replace")
+    if ext in _IMAGE:
+        from . import ocr as _ocr
+        if ocr == "never":
+            return ""  # an image has no text layer; OCR is the only reader
+        return _ocr.ocr_image(data)  # raises a clear error if no engine
     if ext == ".pdf":
         return _extract_pdf_bytes(data, ocr)
     if ext == ".docx":
@@ -71,7 +78,13 @@ def extract_bytes(data: bytes, ext: str, ocr: str = "auto") -> str:
 
 
 def _extract_pdf_bytes(data: bytes, ocr: str) -> str:
-    """Read a PDF's text layer, falling back to OCR per the ``ocr`` mode."""
+    """Read a PDF's text layer, falling back to OCR per the ``ocr`` mode.
+
+    In ``auto`` mode this is *per-page hybrid*: only the pages whose own text
+    layer is empty get OCR'd, and their recovered text is spliced back in page
+    order. So a 200-page report with three scanned inserts only rasterises those
+    three pages, and a fully scanned PDF OCRs everything.
+    """
 
     from . import ocr as _ocr
 
@@ -82,13 +95,19 @@ def _extract_pdf_bytes(data: bytes, ocr: str) -> str:
         from pypdf import PdfReader
     except Exception as exc:
         raise RuntimeError("PDF support needs the 'docs' extra") from exc
-    reader = PdfReader(io.BytesIO(data))
-    text = "\n".join((p.extract_text() or "") for p in reader.pages)
+    page_texts = [(p.extract_text() or "") for p in PdfReader(io.BytesIO(data)).pages]
 
-    if ocr == "auto" and _ocr.looks_scanned(text, len(reader.pages)) \
-            and _ocr.ocr_available():
-        return _ocr.ocr_pdf(data)
-    return text
+    if ocr == "never" or not _ocr.ocr_available():
+        return "\n".join(page_texts)
+
+    # Pages that look empty on their own are candidates for OCR.
+    scanned = [i for i, t in enumerate(page_texts) if _ocr.looks_scanned(t, 1)]
+    if not scanned:
+        return "\n".join(page_texts)
+    recovered = _ocr.ocr_pdf_pages(data, scanned)
+    for i, text in recovered.items():
+        page_texts[i] = text
+    return "\n".join(page_texts)
 
 
 def _load_docx(path: str) -> str:  # pragma: no cover - optional dependency
