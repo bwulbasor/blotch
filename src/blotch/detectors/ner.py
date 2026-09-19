@@ -383,7 +383,12 @@ def _heuristic_detect(text: str) -> list[Span]:
                 i = j
                 continue
         if content:  # a bare title alone is not a person
-            start, end = person[0].start(), person[-1].end()
+            # Span the name words only, leaving an honorific ("Mr", "Dr") as
+            # plaintext: it is not PII, and excluding it keeps the token's value
+            # the bare name so a later bare surname round-trips exactly (no
+            # spurious "Mr" reinserted on restore). `titled` above still lets a
+            # lone titled surname through.
+            start, end = content[0].start(), content[-1].end()
             spans.append(Span(start, end, EntityType.PERSON, text[start:end], 0.5,
                               "ner_heur"))
         i = j

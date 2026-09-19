@@ -48,6 +48,15 @@ def test_bare_surname_after_title_is_propagated():
     assert result.leak_report.clean
 
 
+def test_honorific_left_as_plaintext_and_exact_round_trip():
+    # an honorific is not PII and stays outside the token, so a titled name plus
+    # a later bare surname round-trips exactly (no spurious "Mr" reinserted).
+    text = "Mr Green arrived. Green signed the form."
+    r = sanitize(text, get_policy("personal"), use_spacy=False)
+    assert r.sanitized_text.startswith("Mr [[PERSON_001]]")   # title kept as text
+    assert restore(r.sanitized_text, r.vault).text == text     # exact round-trip
+
+
 def test_place_name_part_not_over_redacted():
     # a city that is also someone's middle name must survive as itself elsewhere
     text = ("Kianna London Barrows filed it. We toured London last spring. "
