@@ -22,6 +22,11 @@ follows [Keep a Changelog](https://keepachangelog.com/).
   `always`). OCR output is best-effort and can contain recognition errors.
 - The daemon returns a friendly 400 (not a 500) when an optional dependency is
   missing, e.g. an image upload with no OCR engine installed.
+- **Engine choice** via `BLOTCH_OCR_ENGINE` (`auto` / `tesseract` / `rapidocr`
+  / `lightonocr`). Added **LightOnOCR-2-1B** as a high-accuracy vision-language
+  engine (Apache-2.0, via `transformers>=5`, `[ocr-vlm]` extra). It is opt-in
+  only, so `auto` never downloads the ~1B model; GPU recommended, CPU works but
+  is slow.
 
 ### Precision on messy PDFs
 - The "all upper-case heading" guard now ignores stray single letters, so a

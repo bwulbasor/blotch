@@ -88,6 +88,7 @@ pip install -e '.[crypto]'       # encrypted vault at rest (AES-256-GCM)
 pip install -e '.[ner]' && python -m spacy download en_core_web_sm   # spaCy NER
 pip install -e '.[docs]'         # PDF + DOCX ingestion and regenerated output
 pip install -e '.[ocr]'          # OCR fallback for scanned PDFs (+ an engine below)
+pip install -e '.[ocr-vlm]'      # high-accuracy OCR via LightOnOCR-2 (heavy; opt-in)
 pip install -e '.[all,dev]'      # everything + pytest
 ```
 
@@ -97,6 +98,14 @@ extra renders pages with PyMuPDF but still needs a recognition engine: either th
 system **Tesseract** binary (with `pytesseract`, from the extra) or the pip-only
 **`rapidocr-onnxruntime`** (no system binary). With neither installed, a scanned
 PDF simply returns empty text instead of crashing.
+
+Pick the engine with `BLOTCH_OCR_ENGINE`:
+
+| value | engine |
+|---|---|
+| `auto` (default) | Tesseract if the binary is present, else RapidOCR — light and fast |
+| `tesseract` / `rapidocr` | force one of the light engines |
+| `lightonocr` | **LightOnOCR-2-1B**, a vision-language OCR model (best accuracy; `[ocr-vlm]` extra, torch + `transformers>=5`, downloads ~1B weights). Opt-in only, so `auto` never surprise-downloads it. GPU recommended; CPU works but is slow. |
 
 ## CLI
 

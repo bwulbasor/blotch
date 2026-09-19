@@ -28,6 +28,11 @@ docs = ["pypdf>=4", "python-docx>=1.1", "reportlab>=4"]
 # recognition engine is either the system Tesseract (via pytesseract) or the
 # pip-only rapidocr-onnxruntime - install one. Pillow decodes the rendered pages.
 ocr = ["pymupdf>=1.24", "pillow>=10", "pytesseract>=0.3.10"]
+# High-accuracy OCR via the LightOnOCR-2 vision-language model (opt-in with
+# BLOTCH_OCR_ENGINE=lightonocr). Heavy: pulls torch + transformers v5 and
+# downloads a ~1B model. On CPU it works but is slow; a GPU is recommended.
+ocr-vlm = ["pymupdf>=1.24", "pillow>=10", "transformers>=5", "torch>=2.2",
+           "accelerate>=0.30"]
 all = ["cryptography>=42", "spacy>=3.7", "pypdf>=4", "python-docx>=1.1",
        "reportlab>=4", "pymupdf>=1.24", "pillow>=10", "pytesseract>=0.3.10"]
 dev = ["pytest>=8", "cryptography>=42"]

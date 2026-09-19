@@ -125,6 +125,12 @@ directly. Without an engine installed, everything else works as before and a
 scan simply comes back empty. OCR text is a best-effort transcription and can
 contain recognition errors, so the review screen matters even more here.
 
+You can choose the OCR engine. The default is a light, fast one that runs
+anywhere. For the best accuracy there is an optional modern OCR model,
+LightOnOCR-2, a small vision-language model that reads a page the way a person
+would; it is heavier and works best with a GPU, so it is opt-in rather than the
+default.
+
 ---
 
 ## Under the hood (how the working actually works)

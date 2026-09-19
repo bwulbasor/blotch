@@ -8,14 +8,22 @@ text, which then flows through the same detection pipeline as any other document
 
 Everything here is **optional and degrades gracefully**. Page rendering needs
 PyMuPDF (``pip install 'blotch[ocr]'``); the actual character recognition needs
-an OCR *engine*. Two are supported, tried in this order:
+an OCR *engine*. Three are supported:
 
 1. **Tesseract** via ``pytesseract`` - accurate and standard, but needs the
    Tesseract binary installed on the system (not just the Python wrapper).
 2. **RapidOCR** (``rapidocr-onnxruntime``) - pip-only, no system binary, bundles
    its own models. A good zero-install option.
+3. **LightOnOCR-2** - a 1B vision-language OCR model (Apache-2.0) run via
+   Transformers; the highest transcription quality, but heavy (torch +
+   ``transformers>=5`` + a ~1B model download). ``pip install 'blotch[ocr-vlm]'``.
 
-If neither is present, :func:`ocr_available` returns ``False`` and callers keep
+Engine choice is controlled by ``BLOTCH_OCR_ENGINE`` (see :func:`_engine`).
+``auto`` (the default) uses only the light, fast engines (Tesseract then
+RapidOCR); the LightOnOCR VLM is opt-in via ``BLOTCH_OCR_ENGINE=lightonocr`` so
+nothing ever surprise-downloads a multi-GB model.
+
+If no engine is present, :func:`ocr_available` returns ``False`` and callers keep
 today's behaviour (an empty result for a scanned PDF) instead of crashing. OCR
 text is a best-effort transcription: it can contain recognition errors, so the
 review screen matters even more for OCR'd documents.
@@ -49,19 +57,41 @@ def looks_scanned(text: str, num_pages: int) -> bool:
 
 
 def _engine():
-    """Return a callable ``png_bytes -> text`` for the best available engine, or
-    ``None`` if no usable OCR engine is installed.
+    """Return a callable ``image_bytes -> text`` for the selected/best available
+    engine, or ``None`` if none is usable.
 
-    The result is cached on the function so model loading (RapidOCR) or the
-    binary probe (Tesseract) happens once per process.
+    Engine choice comes from ``BLOTCH_OCR_ENGINE``:
+
+    * unset / ``auto`` - try the light, fast engines only (Tesseract, then
+      RapidOCR). The heavy LightOnOCR VLM is **never** auto-loaded, so ``auto``
+      can't surprise anyone with a multi-GB model download.
+    * ``tesseract`` / ``rapidocr`` / ``lightonocr`` - force that engine.
+
+    The result is cached, so model loading happens once per process.
     """
 
     if getattr(_engine, "_cached", "unset") != "unset":
         return _engine._cached  # type: ignore[attr-defined]
 
-    engine = _load_tesseract() or _load_rapidocr()
+    import os
+    choice = os.environ.get("BLOTCH_OCR_ENGINE", "auto").strip().lower()
+    loaders = {
+        "tesseract": _load_tesseract,
+        "rapidocr": _load_rapidocr,
+        "lightonocr": _load_lightonocr,
+    }
+    if choice in loaders:
+        engine = loaders[choice]()
+    else:  # auto: light engines only; the VLM is opt-in
+        engine = _load_tesseract() or _load_rapidocr()
     _engine._cached = engine  # type: ignore[attr-defined]
     return engine
+
+
+def reset_engine_cache() -> None:
+    """Forget the cached engine (e.g. after changing ``BLOTCH_OCR_ENGINE``)."""
+    if hasattr(_engine, "_cached"):
+        del _engine._cached  # type: ignore[attr-defined]
 
 
 def _load_tesseract():
@@ -104,6 +134,58 @@ def _load_rapidocr():
             return ""
         # RapidOCR returns [[box, text, score], ...] in reading order.
         return "\n".join(line[1] for line in result)
+
+    return run
+
+
+def _load_lightonocr():
+    """A LightOnOCR-2 engine: a 1B vision-language OCR model (Apache-2.0) run via
+    HuggingFace Transformers. Highest transcription quality of the supported
+    engines, but heavy - it needs ``torch`` + ``transformers>=5`` and downloads
+    a ~1B model, so it is only ever loaded when explicitly selected
+    (``BLOTCH_OCR_ENGINE=lightonocr``), never by ``auto``.
+
+    Tunables via env: ``BLOTCH_OCR_MODEL`` (default ``lightonai/LightOnOCR-2-1B``)
+    and ``BLOTCH_OCR_MAX_TOKENS`` (default 2048).
+    """
+
+    import os
+    try:
+        import torch
+        from transformers import (LightOnOcrForConditionalGeneration,
+                                  LightOnOcrProcessor)
+        from PIL import Image
+    except Exception:
+        return None
+
+    model_id = os.environ.get("BLOTCH_OCR_MODEL", "lightonai/LightOnOCR-2-1B")
+    max_tokens = int(os.environ.get("BLOTCH_OCR_MAX_TOKENS", "2048"))
+    if torch.cuda.is_available():
+        device, dtype = "cuda", torch.bfloat16
+    elif getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+        device, dtype = "mps", torch.float32
+    else:
+        device, dtype = "cpu", torch.float32
+    try:
+        model = LightOnOcrForConditionalGeneration.from_pretrained(
+            model_id, torch_dtype=dtype).to(device)
+        processor = LightOnOcrProcessor.from_pretrained(model_id)
+    except Exception:
+        return None  # model download / load failed - degrade like any other
+
+    def run(image_bytes: bytes) -> str:
+        img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        conversation = [{"role": "user", "content": [{"type": "image", "image": img}]}]
+        inputs = processor.apply_chat_template(
+            conversation, add_generation_prompt=True, tokenize=True,
+            return_dict=True, return_tensors="pt")
+        inputs = {k: (v.to(device=device, dtype=dtype)
+                      if hasattr(v, "is_floating_point") and v.is_floating_point()
+                      else v.to(device))
+                  for k, v in inputs.items()}
+        out = model.generate(**inputs, max_new_tokens=max_tokens)
+        gen = out[0, inputs["input_ids"].shape[1]:]
+        return processor.decode(gen, skip_special_tokens=True)
 
     return run
 

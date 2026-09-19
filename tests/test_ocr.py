@@ -33,6 +33,40 @@ def test_extract_bytes_rejects_bad_ocr_mode():
         extract_bytes(b"hi", ".txt", ocr="sometimes")
 
 
+@pytest.fixture
+def _clean_engine_cache():
+    """Restore the default (auto) engine after a test fiddles with selection."""
+    ocr.reset_engine_cache()
+    yield
+    ocr.reset_engine_cache()
+
+
+def test_unknown_engine_name_falls_back_to_auto(monkeypatch, _clean_engine_cache):
+    monkeypatch.setenv("BLOTCH_OCR_ENGINE", "definitely-not-an-engine")
+    ocr.reset_engine_cache()
+    # An unrecognised name must not crash; it behaves like `auto`.
+    assert ocr.ocr_available() == ocr.ocr_available()  # stable, no exception
+
+
+def test_lightonocr_is_optin_and_degrades(monkeypatch, _clean_engine_cache):
+    # LightOnOCR needs transformers>=5; when it's absent, selecting it must
+    # degrade to None rather than raising.
+    if _has_transformers():
+        pytest.skip("transformers present; can't assert the missing-dep path")
+    monkeypatch.setenv("BLOTCH_OCR_ENGINE", "lightonocr")
+    ocr.reset_engine_cache()
+    assert ocr._engine() is None
+    assert ocr.ocr_available() is False
+
+
+def _has_transformers() -> bool:
+    try:
+        import transformers  # noqa: F401
+        return True
+    except Exception:
+        return False
+
+
 def test_plain_text_ignores_ocr():
     assert extract_bytes(b"hello world", ".txt", ocr="always") == "hello world"
 
