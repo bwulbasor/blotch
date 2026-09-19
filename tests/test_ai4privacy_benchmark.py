@@ -25,3 +25,37 @@ def test_ai4privacy_precision_floor():
     # floor just below the measured 85.2%
     r = evaluate(use_spacy=False)
     assert r["precision"] >= 0.83, f"precision regressed to {r['precision']:.1%}"
+
+
+# Structural identifiers + surnames must NEVER survive in the output. This is the
+# real leak guarantee, checked directly against gold PII values (not span
+# overlap): a regression that lets any of these leak fails the build.
+_STRONG = {
+    "EMAIL", "PHONENUMBER", "SSN", "IBAN", "CREDITCARDNUMBER", "IP", "IPV4",
+    "IPV6", "MAC", "URL", "BITCOINADDRESS", "ETHEREUMADDRESS", "LASTNAME",
+    "NEARBYGPSCOORDINATE",
+}
+
+
+def test_no_strong_identifier_leaks():
+    import json
+    import re
+
+    from blotch import get_policy, sanitize
+
+    with open(_DATA, encoding="utf-8") as fh:
+        rows = json.load(fh)
+    policy = get_policy("maximum")
+    leaks = []
+    for row in rows:
+        text = row["source_text"]
+        out = sanitize(text, policy, use_spacy=False).sanitized_text
+        for m in row["privacy_mask"]:
+            if m["label"] not in _STRONG:
+                continue
+            val = (m.get("value") or text[m["start"]:m["end"]]).strip()
+            if len(val) < 3:
+                continue
+            if re.search(r"(?<!\w)" + re.escape(val) + r"(?!\w)", out):
+                leaks.append((m["label"], val))
+    assert not leaks, f"{len(leaks)} strong identifier(s) leaked, e.g. {leaks[:5]}"

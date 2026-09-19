@@ -78,9 +78,14 @@ _MAC = re.compile(r"\b(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b")
 # Crypto wallet addresses. ETH: 0x + 40 hex (very distinctive). BTC: base58
 # (starts 1/3) or bech32 (bc1), lengths that make accidental matches unlikely.
 _ETH = re.compile(r"\b0x[a-fA-F0-9]{40}\b")
-_BTC = re.compile(r"\b(?:bc1[a-z0-9]{25,62}|[13][a-km-zA-HJ-NP-Z1-9]{25,34})\b")
-# Decimal-degree geo coordinates (>=3 decimals each, to avoid version numbers).
-_COORD = re.compile(r"[-+]?\d{1,2}\.\d{3,}[ \t]*,[ \t]*[-+]?\d{1,3}\.\d{3,}")
+_BTC = re.compile(r"\b(?:bc1[a-z0-9]{25,62}|[13][a-km-zA-HJ-NP-Z1-9]{25,38})\b")
+# Decimal-degree geo coordinates. The bare form needs >=3 decimals each to avoid
+# version numbers ("1.2, 3.4"); the bracketed form "[lat,lon]" is unambiguous, so
+# it accepts any decimal precision ("[-47.302,-95.17]").
+_COORD = re.compile(
+    r"[-+]?\d{1,2}\.\d{3,}[ \t]*,[ \t]*[-+]?\d{1,3}\.\d{3,}"
+    r"|\[[-+]?\d{1,3}\.\d+[ \t]*,[ \t]*[-+]?\d{1,3}\.\d+\]"
+)
 # Court / reference numbers like "AZ 73 C 226", "17 C 391/26", "5 Ob 12/25":
 # number, short letter code, number, optional /year. Distinctive enough that a
 # bare digit-letter-digit run in prose rarely collides.
