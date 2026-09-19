@@ -46,8 +46,12 @@ _STREET_TYPES = (
     "Street|St|Avenue|Ave|Road|Rd|Lane|Ln|Boulevard|Blvd|Drive|Dr|Way|Court|Ct|"
     "Place|Pl|Square|Sq|Terrace|Ter|Parkway|Pkwy|Highway|Hwy|Close|Crescent"
 )
+# A street-name word: a Capitalised word, a single-letter directional (N/S/E/W),
+# or an ordinal ("5th", "42nd") - so "78244 N 5th Street" is caught, not just
+# "78244 Baker Street".
+_ST_WORD = r"(?:[A-ZÄÖÜ][A-Za-zäöüß.'\-]*|\d{1,3}(?:st|nd|rd|th))"
 _STREET_EN = re.compile(
-    rf"\b\d{{1,5}}[A-Za-z]?\s+(?:[A-ZÄÖÜ][A-Za-zäöüß.'\-]+\s+){{1,3}}"
+    rf"\b\d{{1,5}}[A-Za-z]?\s+(?:{_ST_WORD}\s+){{1,3}}"
     rf"(?:{_STREET_TYPES})\b\.?",
 )
 # German/Austrian compound street + number ("Hauptstraße 12", "Ringgasse 4a").

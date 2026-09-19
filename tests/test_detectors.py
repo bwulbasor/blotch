@@ -57,6 +57,12 @@ def test_month_word_in_prose_is_not_a_date():
 
 def test_addresses():
     assert EntityType.ADDRESS in _types("Home: 221 Baker Street, London")
+
+
+def test_numbered_and_directional_streets():
+    # numbered / directional US streets ("78244 N 5th Street", "350 42nd Avenue")
+    for s in ["arranged at 78244 N 5th Street", "office at 350 42nd Avenue"]:
+        assert EntityType.ADDRESS in _types(s), s
     assert EntityType.ADDRESS in _types("lives at Hauptstraße 12 now")
     assert EntityType.ADDRESS in _types("postcode SW1A 1AA on file")
 
