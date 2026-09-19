@@ -81,6 +81,10 @@ class SanitizeResult:
     #: (start, end, replacement). Includes propagated occurrences, so a masked
     #: preview built from these matches the sanitized output exactly.
     edit_spans: list[tuple[int, int, str]] = field(default_factory=list)
+    #: Confidence (0.0-1.0) of each edit in ``edit_spans``, same order. Lets the
+    #: review UI flag shaky detections (a lone-word PERSON at 0.5) apart from
+    #: rock-solid structural ones (a checksum-validated IBAN at 0.97).
+    edit_confidence: list[float] = field(default_factory=list)
 
     def entity_count(self) -> int:
         return len(self.entities)
@@ -104,10 +108,11 @@ def sanitize(text: str, policy: Policy, *, use_ner: bool = True,
     entities = resolve(spans)
 
     # Decide a replacement per member span, honouring the policy per type.
-    edits: list[tuple[int, int, str]] = []  # (start, end, replacement)
+    edits: list[tuple[int, int, str, float]] = []  # (start, end, replacement, conf)
     kept_entities: list[Entity] = []
     covered = bytearray(len(text))  # 1 where a char is already claimed by an edit
     surface_token: dict[str, str | None] = {}  # surface -> token, None if ambiguous
+    surface_conf: dict[str, float] = {}         # surface -> owning entity confidence
     n_tok = n_red = 0
     for entity in entities:
         action = policy.action_for(entity.entity_type)
@@ -121,8 +126,9 @@ def sanitize(text: str, policy: Policy, *, use_ner: bool = True,
         else:  # REDACT
             replacement = _REDACTED
             n_red += 1
+        econf = max((m.confidence for m in entity.members), default=0.5)
         for span in entity.members:
-            edits.append((span.start, span.end, replacement))
+            edits.append((span.start, span.end, replacement, span.confidence))
             covered[span.start:span.end] = b"\x01" * (span.end - span.start)
         # Record each surface for propagation (both TOKENIZE and REDACT, so a
         # redacted value is removed at every occurrence, not just detected ones).
@@ -137,6 +143,7 @@ def sanitize(text: str, policy: Policy, *, use_ner: bool = True,
         for surface in sorted({m.value for m in entity.members} | {entity.canonical}):
             if len(surface) >= 2:
                 surface_token.setdefault(surface, replacement)
+                surface_conf.setdefault(surface, econf)
         # For a confident PERSON, also propagate its individual name parts so a
         # later bare surname ("Green" after "Mr Green") doesn't leak. Parts that
         # are common words / places / titles are excluded; matching is
@@ -144,6 +151,7 @@ def sanitize(text: str, policy: Policy, *, use_ner: bool = True,
         if entity.entity_type == EntityType.PERSON:
             for part in _propagatable_name_parts(entity.canonical):
                 surface_token.setdefault(part, replacement)
+                surface_conf.setdefault(part, econf)
 
     # Occurrence propagation (plan §2): once a surface is known sensitive, catch
     # *every* whole-word occurrence, including ones the detectors skipped (e.g. a
@@ -168,7 +176,7 @@ def sanitize(text: str, policy: Policy, *, use_ner: bool = True,
             token = surface_token.get(m.group(0))
             if token is None or covered[s] or covered[e - 1]:
                 continue
-            edits.append((s, e, token))
+            edits.append((s, e, token, surface_conf.get(m.group(0), 0.5)))
             covered[s:e] = b"\x01" * (e - s)
 
     # Apply all edits in a single left-to-right pass (O(text + edits)); repeated
@@ -176,12 +184,16 @@ def sanitize(text: str, policy: Policy, *, use_ner: bool = True,
     edits.sort(key=lambda ed: ed[0])
     parts: list[str] = []
     pos = 0
-    for start, end, replacement in edits:
+    applied: list[tuple[int, int, str]] = []
+    applied_conf: list[float] = []
+    for start, end, replacement, conf in edits:
         if start < pos:
             continue  # safety: skip any accidental overlap
         parts.append(text[pos:start])
         parts.append(replacement)
         pos = end
+        applied.append((start, end, replacement))
+        applied_conf.append(conf)
     parts.append(text[pos:])
     out = "".join(parts)
 
@@ -203,7 +215,8 @@ def sanitize(text: str, policy: Policy, *, use_ner: bool = True,
         entities=kept_entities,
         num_tokenized=n_tok,
         num_redacted=n_red,
-        edit_spans=edits,  # already sorted ascending, non-overlapping
+        edit_spans=applied,  # sorted ascending, non-overlapping, actually applied
+        edit_confidence=applied_conf,
     )
     if run_leak_scan:
         result.leak_report = scan(out, vault)

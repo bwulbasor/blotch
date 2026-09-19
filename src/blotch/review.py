@@ -47,14 +47,16 @@ def render_review_html(text: str, policy: Policy, *, use_spacy: bool = True,
 
     result = sanitize(text, policy, use_spacy=use_spacy)
     auto_spans = []
-    for start, end, replacement in result.edit_spans:
+    confs = result.edit_confidence or [1.0] * len(result.edit_spans)
+    for (start, end, replacement), conf in zip(result.edit_spans, confs):
         parsed = parse_token(replacement)
         etype = parsed[0] if parsed else "REDACT"
         # carry the pipeline's token so co-reference (same entity -> same token,
         # via resolution + propagation) is preserved in the page, instead of being
-        # re-derived by exact surface value.
+        # re-derived by exact surface value. `conf` lets the page flag shaky
+        # detections (a lone-word guess) apart from checksum-solid structural ones.
         auto_spans.append({"start": start, "end": end, "type": etype,
-                           "token": replacement})
+                           "token": replacement, "conf": round(conf, 2)})
 
     risk = assess(result.sanitized_text)
     leak_clean = result.leak_report.clean if result.leak_report else True
@@ -126,6 +128,13 @@ _TEMPLATE = """<!doctype html>
   .ent.kept {{ background: transparent; box-shadow:none; text-decoration: line-through;
     text-decoration-color:#9a031e; opacity:.6; }}
   .ent.user {{ box-shadow: inset 0 -2px 0 var(--c), 0 0 0 1px var(--c); }}
+  /* low-confidence auto detections: a dotted underline + a faint "?" so the eye
+     goes to the guesses most likely to be false positives worth un-masking. */
+  .ent.low {{ box-shadow: inset 0 -2px 0 transparent;
+    border-bottom: 2px dotted var(--c); }}
+  .ent.low::after {{ content:"?"; font-size:9px; vertical-align:super; color:var(--c);
+    margin-left:1px; opacity:.7; }}
+  body.showtok .ent.low::after {{ content: attr(data-tok) " ?"; }}
   body.showtok .ent::after {{ content: attr(data-tok); font: 10px ui-monospace,monospace;
     color: var(--c); vertical-align: super; margin-left: 1px; }}
   #picker {{ position:absolute; z-index:30; background:#111; color:#fff; padding:6px;
@@ -154,8 +163,9 @@ _TEMPLATE = """<!doctype html>
 </header>
 <div class="banners">{leak_banner}{risk_banner}</div>
 <div class="hint">Click a highlight to <b>keep it in the clear</b>. <b>Select any text</b>
-to tag PII the detector missed. The <b>mapping</b> on the right shows what each token
-points to. Everything stays in this page.</div>
+to tag PII the detector missed. A <b>dotted underline with “?”</b> marks a
+lower-confidence guess worth a look. The <b>mapping</b> on the right shows what
+each token points to. Everything stays in this page.</div>
 <div class="wrap">
   <div class="doc" id="doc"></div>
   <div class="panel">
@@ -278,10 +288,12 @@ points to. Everything stays in this page.</div>
       html += esc(ORIGINAL.slice(pos, s.start));
       const idx = state.spans.indexOf(s);
       const tok = spanTok.get(s) || '';
-      const cls = 'ent' + (s.kept?' kept':'') + (s.user?' user':'');
+      const low = (!s.user && typeof s.conf === 'number' && s.conf < 0.6);
+      const cls = 'ent' + (s.kept?' kept':'') + (s.user?' user':'') + (low?' low':'');
+      const ct = (typeof s.conf === 'number') ? ` · confidence ${{Math.round(s.conf*100)}}%` : '';
       html += `<span class="${{cls}}" data-idx="${{idx}}" data-tok="${{esc(tok)}}" `
         + `style="--c:${{color(s.type)}}" title="${{s.type}}${{s.user?' (you)':''}} `
-        + `${{s.kept?'— kept':'→ '+tok}} · click to ${{s.kept?'mask':'keep'}}">`
+        + `${{s.kept?'— kept':'→ '+tok}}${{ct}} · click to ${{s.kept?'mask':'keep'}}">`
         + esc(ORIGINAL.slice(s.start, s.end)) + '</span>';
       pos = s.end;
     }}

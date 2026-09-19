@@ -57,3 +57,17 @@ def test_review_auto_spans_have_correct_offsets():
     for s in spans:
         assert text[s["start"]:s["end"]]  # non-empty, valid offsets
     assert any(text[s["start"]:s["end"]] == "a.martinez@example.com" for s in spans)
+
+
+def test_review_auto_spans_carry_confidence():
+    # each auto span carries a confidence so the page can flag shaky guesses:
+    # a checksum-validated email is high, a lone-word PERSON guess is low.
+    import json
+    text = "Customer called. Email a.martinez@example.com about it."
+    out = render_review_html(text, get_policy("personal"), use_spacy=False)
+    spans = json.loads(re.search(r"const AUTO = (\[.*?\]);", out).group(1)
+                       .replace("\\u003c", "<"))
+    by_val = {text[s["start"]:s["end"]]: s.get("conf") for s in spans}
+    assert by_val.get("a.martinez@example.com", 0) >= 0.9   # structural = high
+    assert "conf" in spans[0]
+    assert ".ent.low" in out  # the low-confidence style is present
