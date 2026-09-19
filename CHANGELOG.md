@@ -5,6 +5,28 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Detection quality & leak robustness
+- **Leak fix**: a person name containing a gazetteer city word ("Kianna London
+  Barrows") is no longer dropped in overlap resolution - confidence is now
+  banded to 0.1 so a one-word city (0.52) can't evict a longer name (0.5), while
+  a real structural gap (IPv4 0.9 vs greedy phone 0.6) still wins.
+- **Leak fix**: a bare surname after a title/full name ("Mr Green ... Green
+  signed") is now caught. A confident PERSON propagates its name parts
+  case-sensitively; places, common words, and titles are excluded, so "green
+  door" and the city "London" are untouched.
+- Honorifics ("Mr", "Dr") stay as plaintext instead of inside the PERSON token,
+  matching spaCy and giving exact round-trips.
+- **Recall**: year-less / ordinal month-name dates ("20th September", "September
+  2026"); numbered & directional streets ("78244 N 5th Street"); long P2SH
+  bitcoin addresses; bracketed GPS coordinates ("[-47.302,-95.17]"). AI4Privacy
+  targeted recall 91.7% -> 93.7%.
+- **Review UI**: each detection now shows a confidence cue - low-confidence
+  guesses get a dotted underline and "?" so likely false positives are obvious;
+  `SanitizeResult.edit_confidence` exposes this to any consumer.
+- New CI gate proves zero leaks of structural identifiers + surnames across the
+  AI4Privacy sample; regression floors tightened (TAB precision >= 0.94,
+  AI4Privacy recall >= 0.92).
+
 ### OCR layer for scanned PDFs and images
 - New optional `blotch.ingest.ocr` module: a scanned / image-only PDF has no
   text layer, so the loaders now fall back to OCR automatically when the text
