@@ -30,5 +30,6 @@ def test_tab_direct_recall_floor():
 
 def test_tab_precision_floor():
     # guard against over-redaction regressions on real documents
+    # (measured ~95.6%; floor left with headroom for data/version drift)
     r = evaluate("test", use_spacy=False)
-    assert r["precision"] >= 0.90, f"precision regressed to {r['precision']:.1%}"
+    assert r["precision"] >= 0.94, f"precision regressed to {r['precision']:.1%}"
