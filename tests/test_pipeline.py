@@ -35,6 +35,29 @@ def test_same_entity_same_token():
     assert len(set(person_tokens)) == 1
 
 
+def test_bare_surname_after_title_is_propagated():
+    # a common-word surname introduced with a title ("Mr Green") must be caught
+    # at a later bare mention ("Green signed"), while the lower-case common word
+    # ("green door") is left untouched.
+    text = "Mr Green arrived. The green door was open. Green signed the form."
+    result = sanitize(text, get_policy("personal"), use_spacy=False)
+    out = result.sanitized_text
+    assert out.count("[[PERSON_001]]") == 2   # both "Green" name mentions
+    assert "green door" in out                 # the colour is preserved
+    assert "Green signed" not in out           # the surname did not leak
+    assert result.leak_report.clean
+
+
+def test_place_name_part_not_over_redacted():
+    # a city that is also someone's middle name must survive as itself elsewhere
+    text = ("Kianna London Barrows filed it. We toured London last spring. "
+            "Barrows will confirm.")
+    result = sanitize(text, get_policy("personal"), use_spacy=False)
+    out = result.sanitized_text
+    assert "toured London" in out              # the city is not redacted
+    assert "Barrows will confirm" not in out   # the surname is
+
+
 def test_relationships_preserved_distinct_people():
     text = "Alejandro Martinez owes Maria Gomez money."
     result = sanitize(text, get_policy("personal"), use_spacy=False)

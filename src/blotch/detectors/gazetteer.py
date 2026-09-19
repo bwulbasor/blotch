@@ -68,6 +68,13 @@ _ALL = sorted(
     _COUNTRIES | _MULTIWORD_COUNTRIES | _CITIES | _MULTIWORD_CITIES,
     key=len, reverse=True,
 )
+
+# Single-word place names (lower-cased), for callers that must avoid treating a
+# place as a person's name part - e.g. propagation must not redact the city
+# "London" just because it appears as someone's middle name.
+PLACE_WORDS = frozenset(
+    w.lower() for w in (_COUNTRIES | _CITIES) if " " not in w
+)
 _RE = re.compile(r"(?<!\w)(?:" + "|".join(re.escape(p) for p in _ALL) + r")(?!\w)")
 
 

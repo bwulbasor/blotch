@@ -12,14 +12,39 @@ import re
 from dataclasses import dataclass, field
 
 from .detectors import detect_all
+from .detectors.gazetteer import PLACE_WORDS
+from .detectors.ner import _NON_NAME, _PARTICLES, _TITLE_WORDS
 from .leakscan import LeakReport, scan
 from .policy import Action, Policy
 from .resolver import Entity, resolve
-from .spans import Span, resolve_overlaps
+from .spans import EntityType, Span, resolve_overlaps
 from .vault import Vault
 
 _REDACTED = "[REDACTED]"
 _PROPAGATE_CHUNK = 400  # max surfaces per combined propagation regex
+# A person name part is only safe to propagate on its own if it is not also a
+# common word, a place, a title, or a nobiliary particle - otherwise "London"
+# (a middle name) or "Green" (a colour) would over-redact unrelated text.
+_NOT_A_NAME_PART = _NON_NAME | _TITLE_WORDS | _PARTICLES | PLACE_WORDS
+_NAME_WORD = re.compile(r"[^\W\d_][^\W\d_'’\-]*", re.UNICODE)
+
+
+def _propagatable_name_parts(canonical: str) -> list[str]:
+    """Individual name words of a PERSON worth propagating on their own.
+
+    So a bare surname later in the document ("Green" after "Mr Green", "Barrows"
+    after "Kianna London Barrows") is caught. Returns parts only when the name is
+    confidently a person - it carries an honorific, or has >= 2 real name words -
+    and drops any part that is a common word / place / title (matched
+    case-sensitively at propagation time, so only the Capitalised form is hit).
+    """
+    words = _NAME_WORD.findall(canonical)
+    has_title = any(w.lower().rstrip(".") in _TITLE_WORDS for w in words)
+    real = [w for w in words if w.lower().rstrip(".") not in _TITLE_WORDS]
+    if not (has_title or len(real) >= 2):
+        return []
+    return [w for w in real
+            if len(w) >= 3 and w.lower() not in _NOT_A_NAME_PART]
 
 
 def _word_bounded(surface: str) -> str:
@@ -112,6 +137,13 @@ def sanitize(text: str, policy: Policy, *, use_ner: bool = True,
         for surface in sorted({m.value for m in entity.members} | {entity.canonical}):
             if len(surface) >= 2:
                 surface_token.setdefault(surface, replacement)
+        # For a confident PERSON, also propagate its individual name parts so a
+        # later bare surname ("Green" after "Mr Green") doesn't leak. Parts that
+        # are common words / places / titles are excluded; matching is
+        # case-sensitive, so "Green" is caught but "green" is not.
+        if entity.entity_type == EntityType.PERSON:
+            for part in _propagatable_name_parts(entity.canonical):
+                surface_token.setdefault(part, replacement)
 
     # Occurrence propagation (plan §2): once a surface is known sensitive, catch
     # *every* whole-word occurrence, including ones the detectors skipped (e.g. a
