@@ -136,8 +136,14 @@ _DATE = re.compile(
     rf"\d{{4}}-\d{{2}}-\d{{2}}(?:[T ]\d{{2}}:\d{{2}}(?::\d{{2}})?)?"    # ISO (+ time)
     rf"|\d{{4}}/\d{{1,2}}/\d{{1,2}}"                                    # 2026/03/14
     rf"|\d{{1,2}}[./]\d{{1,2}}[./]\d{{2,4}}"                            # 14/03/2026, 14.3.26
-    rf"|\d{{1,2}}{_ORD}[ \t]+(?:of[ \t]+)?(?:{_MONTH_RE})\.?[ \t]+\d{{2,4}}"  # 14th (of) March 2026
+    # year-bearing month-name forms (case-insensitive - the year disambiguates)
+    rf"|\d{{1,2}}{_ORD}[ \t]+(?:of[ \t]+)?(?:{_MONTH_RE})\.?,?[ \t]+\d{{2,4}}"  # 14th (of) March 2026
     rf"|(?:{_MONTH_RE})\.?[ \t]+\d{{1,2}}{_ORD},?[ \t]+\d{{2,4}}"       # March 14th, 2026
+    # year-less month-name forms: require a Capitalised month so prose like
+    # "you may 5 items" or "we march 3 miles" isn't read as a date.
+    rf"|(?-i:{_MONTH_RE})[ \t]+\d{{4}}"                                 # September 2026
+    rf"|\d{{1,2}}{_ORD}[ \t]+(?:of[ \t]+)?(?-i:{_MONTH_RE})\.?"         # 20th September
+    rf"|(?-i:{_MONTH_RE})\.?[ \t]+\d{{1,2}}{_ORD}"                      # September 20th
     rf")\b",
     re.IGNORECASE,
 )

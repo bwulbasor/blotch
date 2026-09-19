@@ -42,6 +42,19 @@ def test_extended_date_formats():
         assert EntityType.DATE in _types(s), s
 
 
+def test_year_less_month_dates():
+    # ordinal / year-less month-name dates (common in DOBs and letters)
+    for s in ["seen 20th September", "born 1st November", "on September 4th",
+              "renewed September 2026", "meeting 26th June again"]:
+        assert EntityType.DATE in _types(s), s
+
+
+def test_month_word_in_prose_is_not_a_date():
+    # a lower-case month word next to a number in prose must NOT be a date
+    for s in ["you may 5 items", "we march 3 miles", "add august flavour 2 cups"]:
+        assert EntityType.DATE not in _types(s), s
+
+
 def test_addresses():
     assert EntityType.ADDRESS in _types("Home: 221 Baker Street, London")
     assert EntityType.ADDRESS in _types("lives at Hauptstraße 12 now")
