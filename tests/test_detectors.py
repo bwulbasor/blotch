@@ -132,6 +132,18 @@ def test_phone_ignores_isbn_and_year_range():
     assert EntityType.PHONE in _types("call +1 (415) 555-0132 today")
 
 
+def test_name_containing_city_word_is_not_dropped():
+    # a person name whose middle/last part is also a gazetteer city ("London")
+    # must survive overlap resolution - dropping it would leak first+last name.
+    from blotch.detectors import detect_all
+    from blotch.spans import resolve_overlaps, EntityType as ET
+    text = "I am named Kianna London Barrows and I am here."
+    kept = resolve_overlaps(detect_all(text, use_spacy=False))
+    covered = " ".join(text[s.start:s.end] for s in kept
+                        if s.entity_type == ET.PERSON)
+    assert "Kianna" in covered and "Barrows" in covered
+
+
 def test_short_month_date_not_case_id():
     # "1 Jan 1990" is a date, not a court case number
     types = _types("born 1 Jan 1990 in town")

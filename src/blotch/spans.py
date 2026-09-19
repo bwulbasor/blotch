@@ -78,7 +78,7 @@ class Span:
 
 
 def resolve_overlaps(spans: list[Span]) -> list[Span]:
-    """Drop overlapping spans, keeping the longest (ties broken by confidence).
+    """Drop overlapping spans, keeping the widest, most confident coverage.
 
     Detectors run independently and may double-cover text (e.g. an ADDRESS that
     contains a POSTAL code). We keep the widest, most confident coverage so the
@@ -87,13 +87,21 @@ def resolve_overlaps(spans: list[Span]) -> list[Span]:
 
     if not spans:
         return []
-    # Confidence first, then width: a structural high-confidence span (an IPv4 or
-    # MAC) beats a longer but weaker one that merely bridges it (a greedy phone
-    # run spanning "192.168.5.10 (01"). Length breaks ties among equal-confidence
-    # spans so "Marie Curie" still wins over "Marie".
+    # Confidence *band* first (rounded to 0.1), then width, then exact confidence:
+    #
+    #   * A structural, clearly higher-confidence span still wins over a longer
+    #     weaker one that merely bridges it - an IPv4/MAC (0.9+) beats a greedy
+    #     phone run spanning "192.168.5.10 (01" (0.6), and a MAC (0.95) beats the
+    #     IPv6-shaped match of the same bytes.
+    #   * But when two spans are within the same confidence band, the *longer* one
+    #     wins - so a full person name ("Kianna London Barrows", 0.5) is not
+    #     evicted by a one-word city inside it ("London", 0.52), which would drop
+    #     the first and last name entirely (a leak). Banding stops a 0.02 gap from
+    #     overriding a real name; a 0.3 gap (structural) still does.
     ordered = sorted(
         spans,
-        key=lambda s: (-s.confidence, -(s.end - s.start), s.start),
+        key=lambda s: (-round(s.confidence * 10), -(s.end - s.start),
+                       -s.confidence, s.start),
     )
     # A covered bitmap makes overlap checks O(span length) instead of O(kept),
     # so this is linear in total span length rather than quadratic in span count
