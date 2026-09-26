@@ -43,10 +43,15 @@ def evaluate(use_spacy: bool = False, limit: int | None = None):
     tot = defaultdict(int)
     cov = defaultdict(int)
     pred_total = pred_hit = 0
+    from benchmarks.leakage import Leakage, coverage_mask
+    leak = Leakage()
+    leak_by = defaultdict(Leakage)
 
     for row in rows:
         text = row["source_text"]
-        preds = [(p.start, p.end) for p in resolve_overlaps(detect_all(text, use_spacy=use_spacy))]
+        spans = resolve_overlaps(detect_all(text, use_spacy=use_spacy))
+        mask = coverage_mask(text, spans)
+        preds = [(p.start, p.end) for p in spans]
         gold = [(m["start"], m["end"]) for m in row["privacy_mask"]]
         for ps, pe in preds:
             pred_total += 1
@@ -57,6 +62,9 @@ def evaluate(use_spacy: bool = False, limit: int | None = None):
             tot[label] += 1
             if any(ps < e and s < pe for ps, pe in preds):
                 cov[label] += 1
+            if label in TARGETED:
+                leak.add(text, mask, s, e)
+                leak_by[label].add(text, mask, s, e)
 
     tgt_tot = sum(tot[l] for l in tot if l in TARGETED)
     tgt_cov = sum(cov[l] for l in tot if l in TARGETED)
@@ -68,11 +76,21 @@ def evaluate(use_spacy: bool = False, limit: int | None = None):
             print(f"  {l:<20} {cov[l]/tot[l]:6.1%}  ({cov[l]}/{tot[l]})")
     prec = pred_hit / pred_total if pred_total else 1.0
     print(f"\nprecision~ : {prec:.1%}  ({pred_hit}/{pred_total} predictions overlap a gold span)")
+    print(f"token leakage (SPriV), targeted : {leak.spriv:.2%}  "
+          f"({leak.leaked_tokens}/{leak.tokens} PII tokens left at least partly unmasked)")
+    print(f"full-coverage recall, targeted  : {leak.full_recall:.1%}  "
+          f"({leak.full_spans}/{leak.spans})")
+    worst = sorted(((l, x) for l, x in leak_by.items() if x.leaked_tokens),
+                   key=lambda kv: -kv[1].leaked_tokens)[:8]
+    if worst:
+        print("  leaked tokens by label: " + ", ".join(
+            f"{l} {x.leaked_tokens}/{x.tokens}" for l, x in worst))
     print("not targeted (out of scope / quasi - shown for coverage, not scored):")
     for l in sorted(tot, key=lambda x: -tot[x]):
         if l not in TARGETED and tot[l] >= 20:
             print(f"  {l:<20} {cov[l]/tot[l]:6.1%}  ({cov[l]}/{tot[l]})")
-    return {"targeted_recall": tgt_cov / tgt_tot if tgt_tot else 1.0, "precision": prec}
+    return {"targeted_recall": tgt_cov / tgt_tot if tgt_tot else 1.0, "precision": prec,
+            "spriv": leak.spriv, "full_recall": leak.full_recall}
 
 
 def main() -> int:

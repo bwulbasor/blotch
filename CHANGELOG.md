@@ -5,6 +5,23 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Strict leakage metrics (SPriV) and the leaks they exposed
+- Benchmarks now report **token leakage (SPriV)** and **full-coverage recall**
+  (`benchmarks/leakage.py`), not only lenient span-overlap recall. TAB DIRECT:
+  0.72% SPriV / 99.2% full coverage; AI4Privacy targeted: 5.9% / 93.2%.
+- The strong-identifier CI gate now requires every identifying character of each
+  structural identifier to be replaced. The old whole-value check passed two
+  completely exposed SSNs (glued to "SSN" with no space).
+- Fixed leaks the stricter metric exposed: unit numbers ("Suite 786" hid "Suite"
+  and exposed "786"); SSN/IPv4/card/phone/IBAN glued to a label (digit-aware
+  boundaries; IBAN tried at every start, checksum decides); dotted labelled IDs
+  ("756.1526.7359" captured only "756"); impossible numeric dates ("51.02.538")
+  evicting phone numbers; ISO timestamps with milliseconds/zone; names with an
+  apostrophe or hyphen ("O'Hara", "Maria-Jose" - one shared NAME_WORD regex in
+  the lexicon); Unicode initials ("H.İ."); MAC/IPv6 glued to a word.
+- Card numbers no longer swallow the following space. IPv6 requires a full or
+  "::"-compressed address, so clock times aren't read as IPs.
+
 ### Architecture: custom recognizers, one lexicon, one pipeline
 - **Custom recognizers**: policies can declare organisation-specific identifier
   formats (`"recognizers": [{name, pattern, entity_type, group?, confidence?,

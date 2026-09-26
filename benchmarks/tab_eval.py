@@ -57,11 +57,16 @@ def evaluate(split: str = "test", use_spacy: bool = False, limit: int | None = N
     type_cov = defaultdict(int)
     pred_total = pred_hit = 0
     missed_direct = []
+    from blotch.lexicon import TITLE_WORDS
+    from benchmarks.leakage import Leakage, coverage_mask
+    leak_raw = Leakage()                  # every token of the gold span
+    leak_id = Leakage(ignore=TITLE_WORDS)  # minus honorifics (kept as plaintext)
 
     for doc in docs:
         text = doc["text"]
         preds = resolve_overlaps(detect_all(text, use_spacy=use_spacy))
         pspans = [(p.start, p.end) for p in preds]
+        mask = coverage_mask(text, preds)
         pred_total += len(pspans)
         # gold spans (dedup overlapping identical) for precision
         gold = _gold_mentions(doc)
@@ -75,6 +80,8 @@ def evaluate(split: str = "test", use_spacy: bool = False, limit: int | None = N
             if hit:
                 cov[idt] += 1
             if idt == "DIRECT":
+                leak_raw.add(text, mask, s, e)
+                leak_id.add(text, mask, s, e)
                 type_tot[etype] += 1
                 if hit:
                     type_cov[etype] += 1
@@ -89,6 +96,11 @@ def evaluate(split: str = "test", use_spacy: bool = False, limit: int | None = N
     print(f"QUASI  recall : {rec('QUASI'):6.1%}  ({cov['QUASI']}/{tot['QUASI']})")
     prec = pred_hit / pred_total if pred_total else 1.0
     print(f"precision~    : {prec:6.1%}  ({pred_hit}/{pred_total} predictions overlap a gold span)")
+    print(f"DIRECT token leakage (SPriV): {leak_id.spriv:6.2%} of identifying tokens "
+          f"({leak_id.leaked_tokens}/{leak_id.tokens}); {leak_raw.spriv:.2%} counting "
+          f"honorifics, which blotch leaves as plaintext by design")
+    print(f"DIRECT full-coverage recall : {leak_id.full_recall:6.1%}  "
+          f"({leak_id.full_spans}/{leak_id.spans} identifiers with nothing identifying left)")
     print("\nDIRECT recall by gold entity type:")
     for t in sorted(type_tot, key=lambda x: -type_tot[x]):
         print(f"  {t:<10} {type_cov[t]/type_tot[t]:6.1%}  ({type_cov[t]}/{type_tot[t]})")
@@ -97,7 +109,9 @@ def evaluate(split: str = "test", use_spacy: bool = False, limit: int | None = N
         for t, v in missed_direct[:30]:
             print(f"  {t:<10} {v!r}")
     return {"direct_recall": rec("DIRECT"), "quasi_recall": rec("QUASI"),
-            "precision": prec}
+            "precision": prec,
+            "direct_spriv": leak_id.spriv, "direct_spriv_raw": leak_raw.spriv,
+            "direct_full_recall": leak_id.full_recall}
 
 
 def main() -> int:

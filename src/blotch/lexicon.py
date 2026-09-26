@@ -12,6 +12,15 @@ sentence-leading forms) and frozen, so no importer can mutate them for another.
 
 from __future__ import annotations
 
+import re
+
+# One "name word": letters, with an internal apostrophe when >= 2 letters follow
+# ("O'Hara", "D'Angelo" - but not the possessive in "Smith's") or an internal
+# hyphen before a letter ("Maria-Jose", "Anne-Marie"). The earlier pattern put
+# the apostrophe and hyphen in a NEGATED class, so it split "O'Hara" into a
+# dropped initial "O" plus "Hara" and left "O'" in the clear.
+NAME_WORD = re.compile(r"[^\W\d_](?:[^\W\d_]|['’](?=[^\W\d_]{2})|-(?=[^\W\d_]))*")
+
 TITLE_WORDS = {"mr", "mrs", "ms", "miss", "dr", "prof", "herr", "frau", "sir",
                 "madam", "mx", "st"}
 ORG_SUFFIX_WORDS = {

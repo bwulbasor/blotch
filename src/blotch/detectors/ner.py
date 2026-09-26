@@ -14,6 +14,7 @@ import re
 # The name word lists live in blotch.lexicon (shared with the resolver and the
 # pipeline); aliased to the historical private names used throughout this module.
 from ..lexicon import (
+    NAME_WORD as _WORD,
     NON_NAME as _NON_NAME,
     ORG_SUFFIX_WORDS as _ORG_SUFFIX_WORDS,
     PARTICLES as _PARTICLES,
@@ -23,10 +24,9 @@ from ..lexicon import (
 )
 from ..spans import EntityType, Span
 
-# A single letter-led "word" (Unicode-aware: any letter start, then letters /
-# apostrophe / hyphen). Uppercase is judged with str.isupper(), which is correct
-# for accented and non-Latin letters that an ASCII char class ([A-Z]) misses.
-_WORD = re.compile(r"[^\W\d_][^\W\d_'’\-]*", re.UNICODE)
+# _WORD (from the lexicon) is Unicode-aware; upper-case is judged with
+# str.isupper(), which is correct for accented and non-Latin letters that an
+# ASCII char class ([A-Z]) misses.
 _MAX_NAME_GAP = 2  # max spaces/tabs between two words of one name run
 
 

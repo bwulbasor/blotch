@@ -126,3 +126,54 @@ def test_negative_content_length_is_rejected_not_hung():
     finally:
         httpd.shutdown()
         httpd.server_close()
+
+
+# -- found by the stricter full-coverage / SPriV metric --------------------------
+
+def _exposed_within(text, secret, policy="maximum"):
+    """Alphanumeric chars of ``secret`` (verbatim in ``text``) NOT replaced."""
+    r = sanitize(text, get_policy(policy), use_spacy=False)
+    mask = bytearray(len(text))
+    for s, e, _ in r.edit_spans:
+        mask[s:e] = b"\x01" * (e - s)
+    i = text.index(secret)
+    exposed = "".join(text[j] for j in range(i, i + len(secret))
+                      if text[j].isalnum() and not mask[j])
+    return r.sanitized_text, exposed
+
+
+@pytest.mark.parametrize("text, secret", [
+    ("Please provide your SSN132-65-3444 today.", "132-65-3444"),   # glued to label
+    ("Routed through IP192.168.1.10 overnight.", "192.168.1.10"),
+    ("Charge card4111111111111111 now.", "4111111111111111"),
+    ("Pay to IBANGB82WEST12345698765432 today.", "GB82WEST12345698765432"),
+    ("Delivered to Suite 786 downtown.", "786"),                    # unit number
+    ("Use patient 756.1526.7359's record.", "756.1526.7359"),       # dotted labelled id
+    ("Call us on +51.02.538 5609.", "51.02.538 5609"),              # not a date
+    ("Born 1902-08-21T22:37:28.285Z here.", "1902-08-21T22:37:28.285Z"),
+    ("MAC Address4e:b8:7f:2f:e4:72 on file.", "4e:b8:7f:2f:e4:72"),  # glued MAC
+    ("Best regards, O'Hara.", "O'Hara"),                            # apostrophe name
+    ("Represented by Mr H.İ. Er, a lawyer.", "H.İ. Er"),            # Unicode initial
+])
+def test_no_part_of_the_identifier_survives(text, secret):
+    out, exposed = _exposed_within(text, secret)
+    assert exposed == "", f"{exposed!r} of {secret!r} survived: {out!r}"
+
+
+def test_card_does_not_swallow_the_following_space():
+    out, _ = _exposed_within("card 4111 1111 1111 1111 exp soon", "4111")
+    assert "[[CREDIT_CARD_001]] exp" in out
+
+
+def test_impossible_numeric_date_is_not_a_date():
+    from blotch.detectors import deterministic
+    types = {s.entity_type for s in deterministic.detect("ref 51.02.538 here")}
+    assert EntityType.DATE not in types
+    types = {s.entity_type for s in deterministic.detect("on 14.03.2026 we met")}
+    assert EntityType.DATE in types
+
+
+def test_clock_time_is_not_an_ipv6_address():
+    from blotch.detectors import deterministic
+    types = {s.entity_type for s in deterministic.detect("at 10:30:00 sharp")}
+    assert EntityType.IP not in types

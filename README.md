@@ -347,6 +347,31 @@ The remaining gap is context-free bare numbers (a lone building number or ZIP,
 `MM/YY` dates) — catching those means redacting every short number, so they're
 left out by design (the street/city/state around them are already caught).
 
+### Leakage, measured strictly (SPriV)
+
+Overlap recall is lenient: an identifier counts as "caught" if *any* predicted
+span touches it, so hiding "Jose" in "Jose Gomez Ruiz" scores a hit while "Gomez
+Ruiz" leaks. So the benchmarks also report what actually survives, following the
+**SPriV** metric from the PRvL study — the share of PII tokens left even partly
+unmasked — and **full-coverage recall** (every identifying character hidden):
+
+| Benchmark | overlap recall | full-coverage recall | token leakage (SPriV) |
+|---|---|---|---|
+| TAB DIRECT identifiers | 100% | **99.2%** | **0.72%** |
+| AI4Privacy targeted types | 94.1% | **93.2%** | **5.9%** |
+
+TAB's gold PERSON spans include honorifics ("Mr Galip Yalman"), which blotch
+deliberately leaves as plaintext; counted, TAB SPriV would read 28.7%, so the
+table excludes them (the three remaining TAB residuals are "no.", "and", "to" -
+none identifying). On AI4Privacy most of the residual is the deliberate non-goal
+of bare building numbers and ZIPs (144 of 243 leaked tokens).
+
+Measuring this way found real partial leaks the overlap metric hid - unit numbers
+("Suite **786**"), SSNs/IPs/cards glued to their label with no space
+("SSN132-65-3444", common in PDF extraction), `O'Hara`, millisecond ISO
+timestamps - all fixed. CI now requires full coverage of every structural
+identifier, not just that the whole value is absent.
+
 ### vs. Microsoft Presidio
 
 Presidio is the open-source PII detector most tools benchmark against, so

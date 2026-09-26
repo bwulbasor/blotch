@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from .detectors import detect_all
 from .detectors.gazetteer import PLACE_WORDS
 from .leakscan import LeakReport, scan
-from .lexicon import NON_NAME, PARTICLES, TITLE_WORDS
+from .lexicon import NAME_WORD, NON_NAME, PARTICLES, TITLE_WORDS
 from .policy import Action, Policy
 from .resolver import Entity, resolve
 from .spans import EntityType, Span, resolve_overlaps
@@ -27,7 +27,6 @@ _PROPAGATE_CHUNK = 400  # max surfaces per combined propagation regex
 # common word, a place, a title, or a nobiliary particle - otherwise "London"
 # (a middle name) or "Green" (a colour) would over-redact unrelated text.
 _NOT_A_NAME_PART = NON_NAME | TITLE_WORDS | PARTICLES | PLACE_WORDS
-_NAME_WORD = re.compile(r"[^\W\d_][^\W\d_'’\-]*", re.UNICODE)
 
 
 def _propagatable_name_parts(canonical: str) -> list[str]:
@@ -39,7 +38,7 @@ def _propagatable_name_parts(canonical: str) -> list[str]:
     and drops any part that is a common word / place / title (matched
     case-sensitively at propagation time, so only the Capitalised form is hit).
     """
-    words = _NAME_WORD.findall(canonical)
+    words = NAME_WORD.findall(canonical)
     has_title = any(w.lower().rstrip(".") in TITLE_WORDS for w in words)
     real = [w for w in words if w.lower().rstrip(".") not in TITLE_WORDS]
     if not (has_title or len(real) >= 2):

@@ -28,6 +28,15 @@ def test_tab_direct_recall_floor():
     assert r["direct_recall"] >= 0.99, f"DIRECT recall regressed to {r['direct_recall']:.1%}"
 
 
+def test_tab_direct_leakage_ceiling():
+    # overlap recall can be 100% while half a name leaks; these count what is
+    # actually left exposed (honorifics excluded: blotch keeps them by design)
+    r = evaluate("test", use_spacy=False)
+    assert r["direct_spriv"] <= 0.02, f"DIRECT token leakage {r['direct_spriv']:.2%}"
+    assert r["direct_full_recall"] >= 0.98, \
+        f"DIRECT full-coverage recall {r['direct_full_recall']:.1%}"
+
+
 def test_tab_precision_floor():
     # guard against over-redaction regressions on real documents
     # (measured ~95.6%; floor left with headroom for data/version drift)

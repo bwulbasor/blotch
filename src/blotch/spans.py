@@ -130,16 +130,18 @@ def resolve_overlaps(spans: list[Span]) -> list[Span]:
     return kept
 
 
-# Greedy digit-run detectors whose partial loss is regex over-reach (a phone run
-# bridging into an IP: "192.168.5.10 (01"), not a real fragment of PII.
-_NO_REMAINDER = {EntityType.PHONE, EntityType.CREDIT_CARD}
+# Greedy digit-run detectors: a partial loss is often regex over-reach (a phone
+# run bridging into an IP: "192.168.5.10 (01"), so their remainder is kept only
+# when it still carries a real chunk of digits ("... 5609").
+_DIGIT_RUNS = {EntityType.PHONE, EntityType.CREDIT_CARD}
+_MIN_DIGIT_REMAINDER = 4
 
 
 def _remainders(span: Span, covered: bytearray) -> list[Span]:
     """Uncovered sub-ranges of ``span``, trimmed to their alphanumeric core."""
 
-    if span.entity_type in _NO_REMAINDER or len(span.value) != span.end - span.start:
-        return []  # (value not aligned with offsets -> can't slice it safely)
+    if len(span.value) != span.end - span.start:
+        return []  # value not aligned with offsets -> can't slice it safely
     out: list[Span] = []
     i = span.start
     while i < span.end:
@@ -156,7 +158,10 @@ def _remainders(span: Span, covered: bytearray) -> list[Span]:
         while b > a and not span.value[b - 1 - span.start].isalnum():
             b -= 1
         frag = span.value[a - span.start:b - span.start]
-        if sum(ch.isalnum() for ch in frag) >= 2:
+        keep = (sum(ch.isdigit() for ch in frag) >= _MIN_DIGIT_REMAINDER
+                if span.entity_type in _DIGIT_RUNS
+                else sum(ch.isalnum() for ch in frag) >= 2)
+        if keep:
             out.append(Span(a, b, span.entity_type, frag, span.confidence,
                             f"{span.detector}:remainder"))
         i = j

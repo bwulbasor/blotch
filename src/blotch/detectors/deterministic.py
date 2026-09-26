@@ -22,10 +22,25 @@ from .validators import iban_valid, luhn_valid
 
 _EMAIL = re.compile(r"\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b")
 _URL = re.compile(r"\bhttps?://[^\s<>()\[\]{}\"']+", re.IGNORECASE)
+# Structural detectors use DIGIT-aware boundaries, not \b: a value glued to its
+# label with no space ("IP192.168.1.10", "SSN132-65-3444", "card4111...") - common
+# in PDF text extraction - has no word boundary before it, so \b-anchored
+# patterns detected nothing and the whole value leaked.
 _IPV4 = re.compile(
-    r"\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b"
+    r"(?<!\d)(?<!\d\.)(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)"
+    r"(?!\d)(?!\.\d)"
 )
-_IPV6 = re.compile(r"\b(?:[0-9A-Fa-f]{1,4}:){2,7}[0-9A-Fa-f]{1,4}\b")
+# IPv6: a full 8-group address or a "::"-compressed one. (A loose "2+ groups"
+# pattern also matched clock times like "10:30:00" and MACs.) Hex-aware
+# lookarounds instead of \b, so an address glued to a word ("IPb524:ed2c:...")
+# still matches from its first hex group.
+_IPV6 = re.compile(
+    r"(?<![0-9A-Fa-f:])(?:"
+    r"(?:[0-9A-Fa-f]{1,4}:){7}[0-9A-Fa-f]{1,4}"
+    r"|(?:[0-9A-Fa-f]{1,4}:){1,7}:(?:[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4}){0,6})?"
+    r"|::[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4}){0,6}"
+    r")(?![0-9A-Fa-f:])"
+)
 # High-recall phone run: a digit-led token of digits / spaces / + ( ) . - that
 # begins and ends on a digit. The 7-15 digit count is enforced in code so we
 # catch both grouped ("+43 660 1234567") and contiguous ("06601234567") forms.
@@ -33,14 +48,19 @@ _IPV6 = re.compile(r"\b(?:[0-9A-Fa-f]{1,4}:){2,7}[0-9A-Fa-f]{1,4}\b")
 # confidence, usually longer) spans and win overlap resolution.
 # Horizontal whitespace only ([ \t], not \n): a phone number never spans a line
 # break, so this won't bridge a footer year into the next line's section number.
-_PHONE = re.compile(r"(?<![\w.])\+?\d[\d \t().\-]{5,17}\d(?![\w])")
+_PHONE = re.compile(r"(?<![\d.])\+?\d[\d \t().\-]{5,17}\d(?!\d)")
 # Guards so bibliography noise isn't mistaken for phone numbers.
 _YEAR_RANGE = re.compile(r"^(?:19|20)\d{2}\s*[-–]\s*(?:19|20)\d{2}$")
 # A parenthesised 4-digit year is a citation year ("417 (2023)"), not a phone.
 _PAREN_YEAR = re.compile(r"\((?:19|20)\d{2}")
-_IBAN = re.compile(r"\b[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]{1,4}){2,8}\b")
-_CARD = re.compile(r"\b(?:\d[ \-]?){13,19}\b")
-_US_SSN = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
+# IBAN: tried at EVERY start position (zero-width lookahead) so one glued to an
+# upper-case label ("IBANGB82WEST...") is still found; the mod-97 checksum then
+# decides which candidate is real.
+_IBAN = re.compile(r"(?=([A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]{1,4}){2,8})\b)")
+# Card: starts AND ends on a digit. The old "(\d[ -]?){13,19}\b" could end on a
+# separator and swallow the space after the number ("[[CREDIT_CARD_001]]exp").
+_CARD = re.compile(r"(?<!\d)\d(?:[ \-]?\d){12,18}(?!\d)")
+_US_SSN = re.compile(r"(?<!\d)\d{3}-\d{2}-\d{4}(?!\d)")
 # Street addresses. English form: number + name words + street-type suffix.
 _STREET_TYPES = (
     "Street|St|Avenue|Ave|Road|Rd|Lane|Ln|Boulevard|Blvd|Drive|Dr|Way|Court|Ct|"
@@ -82,11 +102,13 @@ _BIC = re.compile(
     re.IGNORECASE,
 )
 # MAC address (colon or hyphen separated).
-_MAC = re.compile(r"\b(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b")
+# Hex-aware lookarounds rather than \b, so "MAC Address4e:b8:7f:2f:e4:72" (glued
+# to a word) still matches from "4e".
+_MAC = re.compile(r"(?<![0-9A-Fa-f:-])(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}(?![0-9A-Fa-f:-])")
 # Crypto wallet addresses. ETH: 0x + 40 hex (very distinctive). BTC: base58
 # (starts 1/3) or bech32 (bc1), lengths that make accidental matches unlikely.
 _ETH = re.compile(r"\b0x[a-fA-F0-9]{40}\b")
-_BTC = re.compile(r"\b(?:bc1[a-z0-9]{25,62}|[13][a-km-zA-HJ-NP-Z1-9]{25,38})\b")
+_BTC = re.compile(r"\b(?:bc1[a-z0-9]{25,62}|[13][a-km-zA-HJ-NP-Z1-9]{25,41})\b")
 # Decimal-degree geo coordinates. The bare form needs >=3 decimals each to avoid
 # version numbers ("1.2, 3.4"); the bracketed form "[lat,lon]" is unambiguous, so
 # it accepts any decimal precision ("[-47.302,-95.17]").
@@ -121,7 +143,9 @@ _CASE_NUM = re.compile(r"\b(?:AZ[ \t]+)?\d{1,4}[ \t]+[A-Z][a-z]?[ \t]+\d{1,4}(?:
 _REF_NUM = re.compile(r"\b\d{3,6}/\d{2,4}\b")
 # Person referred to by initials ("J.H.", "A.B.C.") - common in legal/medical
 # anonymisation. A small stoplist keeps out non-name abbreviations.
-_INITIALS = re.compile(r"\b(?:[A-Z]\.){2,3}")
+# Unicode letters (checked upper-case in code): an ASCII-only [A-Z] missed the
+# Turkish "İ" in "Mr H.İ. Er" and left that initial in the clear.
+_INITIALS = re.compile(r"\b(?:[^\W\d_]\.){2,3}")
 _INITIALS_STOP = {
     "U.S.", "U.K.", "U.N.", "E.U.", "A.M.", "P.M.", "B.C.", "A.D.", "I.E.",
     "E.G.", "N.B.", "P.S.", "U.S.A.", "D.C.", "A.K.A.", "E.T.C.",
@@ -134,7 +158,10 @@ _LABELLED = re.compile(
     r"(?:\s+(?:number|no\.?|id|ref|is|was|of))*\s*[:#\-]?\s*"
     # value: optional uppercase prefix (kept case-sensitive so lowercase filler
     # words are never swallowed), then digits.
-    r"(?P<id>(?-i:[A-Z]{0,4})[\s\-]?\d[\d\-/]{2,})",
+    # dots allowed only between digits ("756.1526.7359"), so a sentence-ending
+    # period isn't swallowed; stopping at the first dot used to capture just
+    # "756" and leave the rest of the number exposed.
+    r"(?P<id>(?-i:[A-Z]{0,4})[\s\-]?\d(?:[\d\-/]|\.(?=\d)){2,})",
     re.IGNORECASE,
 )
 _LABEL_TYPE = {
@@ -168,7 +195,9 @@ _MONTH_RE = "|".join(_MONTHS + [m[:3] for m in _MONTHS])
 _ORD = r"(?:st|nd|rd|th)?"
 _DATE = re.compile(
     rf"\b(?:"
-    rf"\d{{4}}-\d{{2}}-\d{{2}}(?:[T ]\d{{2}}:\d{{2}}(?::\d{{2}})?)?"    # ISO (+ time)
+    # ISO date, optional time with fractional seconds and zone ("...T22:37:28.285Z")
+    rf"\d{{4}}-\d{{2}}-\d{{2}}(?:[T ]\d{{2}}:\d{{2}}(?::\d{{2}}(?:\.\d+)?)?"
+    rf"(?:Z|[+-]\d{{2}}:?\d{{2}})?)?"
     rf"|\d{{4}}/\d{{1,2}}/\d{{1,2}}"                                    # 2026/03/14
     rf"|\d{{1,2}}[./]\d{{1,2}}[./]\d{{2,4}}"                            # 14/03/2026, 14.3.26
     # year-bearing month-name forms (case-insensitive - the year disambiguates)
@@ -180,6 +209,29 @@ _DATE = re.compile(
     rf"|\d{{1,2}}{_ORD}[ \t]+(?:of[ \t]+)?(?-i:{_MONTH_RE})\.?"         # 20th September
     rf"|(?-i:{_MONTH_RE})\.?[ \t]+\d{{1,2}}{_ORD}"                      # September 20th
     rf")\b",
+    re.IGNORECASE,
+)
+
+
+_NUMERIC_DATE = re.compile(r"(\d{1,2})[./](\d{1,2})[./]\d{2,4}")
+
+
+def _plausible_date(value: str) -> bool:
+    """Reject numeric "dates" no calendar has ("51.02.538"): such a match used to
+    outrank the phone number it was really part of and leak the rest of it."""
+    m = _NUMERIC_DATE.fullmatch(value)
+    if not m:
+        return True  # ISO / month-name forms are validated by their own shape
+    a, b = int(m.group(1)), int(m.group(2))
+    return (1 <= a <= 31 and 1 <= b <= 12) or (1 <= a <= 12 and 1 <= b <= 31)
+
+
+# Secondary-address unit ("Suite 786", "Apt. 259", "Unit 4B"). The number is the
+# identifying part: without this, the name heuristic took "Suite" for a person
+# and left "786" in the clear. The id must contain a digit.
+_UNIT = re.compile(
+    r"\b(?:Apt|Apartment|Suite|Ste|Unit|Flat|Floor|Fl|Room|Rm|Bldg|Building)\.?"
+    r"[ \t]*#?[ \t]*(?=[A-Za-z]?\d)[0-9A-Za-z][0-9A-Za-z\-]{0,5}\b",
     re.IGNORECASE,
 )
 
@@ -221,19 +273,28 @@ def detect(text: str) -> list[Span]:
     spans += _yield(_CASE_NUM, text, EntityType.CASE_ID, "case_num", 0.8)
     spans += _yield(_REF_NUM, text, EntityType.CASE_ID, "ref_num", 0.7)
     for m in _INITIALS.finditer(text):
-        if m.group(0).upper() not in _INITIALS_STOP:
+        letters = m.group(0).replace(".", "")
+        if letters.isupper() and m.group(0).upper() not in _INITIALS_STOP:
             spans.append(Span(m.start(), m.end(), EntityType.PERSON, m.group(0),
                               0.55, "initials"))
-    spans += _yield(_DATE, text, EntityType.DATE, "date", 0.7)
+    for m in _DATE.finditer(text):
+        if _plausible_date(m.group(0)):
+            spans.append(Span(m.start(), m.end(), EntityType.DATE, m.group(0), 0.7, "date"))
+    for m in _UNIT.finditer(text):
+        spans.append(Span(m.start(), m.end(), EntityType.ADDRESS, m.group(0), 0.8, "unit"))
     spans += _yield(_AGE, text, EntityType.AGE, "age", 0.8)
     # below DATE (0.7): an ISO datetime "2026-03-14T10:30:00" must stay ONE date
     # span; a TIME that outranked it evicted the date and leaked "2026-03-14".
     spans += _yield(_TIME, text, EntityType.TIME, "time", 0.65)
 
     # Validated detectors: only emit on checksum pass (high precision).
+    iban_end = -1
     for m in _IBAN.finditer(text):
-        if iban_valid(m.group(0)):
-            spans.append(Span(m.start(), m.end(), EntityType.IBAN, m.group(0), 0.99, "iban"))
+        if m.start(1) < iban_end:
+            continue  # inside an IBAN already found
+        if iban_valid(m.group(1)):
+            spans.append(Span(m.start(1), m.end(1), EntityType.IBAN, m.group(1), 0.99, "iban"))
+            iban_end = m.end(1)
     for m in _CARD.finditer(text):
         # Luhn-valid -> high confidence. A card-shaped number that fails Luhn is
         # still emitted at lower confidence: for a privacy tool a 13-19 digit

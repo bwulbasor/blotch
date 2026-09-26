@@ -38,8 +38,10 @@ _STRONG = {
 
 
 def test_no_strong_identifier_leaks():
+    # Checks that EVERY identifying character of each strong identifier is
+    # replaced - not merely that the whole value no longer appears verbatim
+    # (that weaker check let a half-hidden 40-char wallet address pass).
     import json
-    import re
 
     from blotch import get_policy, sanitize
 
@@ -49,13 +51,24 @@ def test_no_strong_identifier_leaks():
     leaks = []
     for row in rows:
         text = row["source_text"]
-        out = sanitize(text, policy, use_spacy=False).sanitized_text
+        r = sanitize(text, policy, use_spacy=False)
+        mask = bytearray(len(text))
+        for s, e, _rep in r.edit_spans:
+            mask[s:e] = b"\x01" * (e - s)
         for m in row["privacy_mask"]:
             if m["label"] not in _STRONG:
                 continue
-            val = (m.get("value") or text[m["start"]:m["end"]]).strip()
-            if len(val) < 3:
-                continue
-            if re.search(r"(?<!\w)" + re.escape(val) + r"(?!\w)", out):
-                leaks.append((m["label"], val))
-    assert not leaks, f"{len(leaks)} strong identifier(s) leaked, e.g. {leaks[:5]}"
+            s, e = m["start"], m["end"]
+            exposed = "".join(text[i] for i in range(s, e)
+                              if text[i].isalnum() and not mask[i])
+            if exposed:
+                leaks.append((m["label"], text[s:e], exposed))
+    assert not leaks, f"{len(leaks)} strong identifier(s) (partly) leaked, e.g. {leaks[:5]}"
+
+
+def test_ai4privacy_token_leakage_ceiling():
+    # SPriV-style: share of targeted PII tokens left even partly unmasked. Most of
+    # what remains is the deliberate non-goal of bare building numbers / ZIPs.
+    r = evaluate(use_spacy=False)
+    assert r["spriv"] <= 0.07, f"token leakage rose to {r['spriv']:.2%}"
+    assert r["full_recall"] >= 0.92, f"full-coverage recall fell to {r['full_recall']:.1%}"
