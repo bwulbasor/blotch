@@ -42,6 +42,9 @@ class Entity:
     canonical: str
     members: list[Span] = field(default_factory=list)
     index: int = 0  # per-type sequential index, assigned by :func:`resolve`
+    #: What the pipeline replaced this entity with (its token, or "[REDACTED]").
+    #: Empty until :func:`blotch.pipeline.sanitize` acts on it.
+    replacement: str = ""
 
     @property
     def first_offset(self) -> int:

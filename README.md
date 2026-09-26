@@ -219,6 +219,41 @@ Unknown entity types are rejected (a typo must not silently leak a category), an
 the outbound leak scanner still blocks if a custom policy leaves a high-confidence
 identifier behind.
 
+### Custom recognizers (your own ID formats)
+
+Generic detectors can't know your organisation's identifiers — employee IDs,
+ticket or matter numbers, internal codenames. Declare them in the policy as a
+regex mapped onto an existing entity type:
+
+```json
+{ "name": "acme", "default": "keep",
+  "actions": { "PERSON": "tokenize", "ACCOUNT_ID": "tokenize", "CASE_ID": "tokenize" },
+  "recognizers": [
+    { "name": "employee_id", "pattern": "EMP-\\d{5}", "entity_type": "ACCOUNT_ID" },
+    { "name": "ticket", "pattern": "(?:ticket|TKT)[ #:-]*(?P<v>[A-Z]{3}-\\d{4})",
+      "entity_type": "CASE_ID", "group": "v", "ignore_case": true } ] }
+```
+
+```
+Maria Gomez (EMP-20931) opened ticket #OPS-4410. EMP-20931 is on call.
+[[PERSON_001]] ([[ACCOUNT_ID_001]]) opened ticket #[[CASE_ID_001]]. [[ACCOUNT_ID_001]] is on call.
+```
+
+- `group` picks the capture group that is the secret, so a label ("ticket #")
+  can anchor the match and stay readable.
+- Recognizers run in detection **and** in the outbound leak scanner, so an ID
+  that slips through still blocks transmission.
+- Validation is strict, at load: a pattern that doesn't compile or can match
+  empty text is rejected, and so is a recognizer whose type the policy would
+  `keep` — detecting an ID and then leaving it in the clear is an error, not a
+  no-op.
+- From Python: `get_policy("personal").with_recognizers([Recognizer("employee_id",
+  r"EMP-\d{5}", EntityType.ACCOUNT_ID)])`.
+
+Without a recognizer, an unknown format isn't just missed — it can be mangled:
+the name heuristic reads `Badge EMP-10442` as a person called "Badge EMP" and
+leaves `-10442` in the clear.
+
 ## Provider adapters
 
 `blotch.providers` ships dependency-free adapters so the gateway can talk to

@@ -16,7 +16,7 @@ import sys
 
 from . import __version__
 from .ingest import load_text
-from .pipeline import preview, sanitize
+from .pipeline import entity_report, preview, sanitize
 from .policy import BUILTIN, get_policy, load_policy_file
 from .rehydrate import restore
 from .vault import Vault
@@ -41,7 +41,7 @@ def _cmd_inspect(args) -> int:
     text = _read(args.file)
     policy = _policy(args)
     result = sanitize(text, policy, use_spacy=not args.no_spacy)
-    from .tokens import make_token
+    report = entity_report(result, policy)
     if args.json:
         import json
         from .reidrisk import assess
@@ -49,14 +49,7 @@ def _cmd_inspect(args) -> int:
         payload = {
             "policy": policy.name,
             "count": result.entity_count(),
-            "entities": [
-                {"token": make_token(e.entity_type, e.index),
-                 "type": e.entity_type.value,
-                 "value": e.canonical,
-                 "confidence": round(max((s.confidence for s in e.members), default=0.0), 2),
-                 "occurrences": len(e.members)}
-                for e in sorted(result.entities, key=lambda e: (e.entity_type.value, e.index))
-            ],
+            "entities": report,
             "leak": {"clean": result.leak_report.clean if result.leak_report else True,
                      "summary": result.leak_report.summary() if result.leak_report else ""},
             "reid_risk": {"level": risk.level.value,
@@ -67,11 +60,9 @@ def _cmd_inspect(args) -> int:
     print(f"Policy: {policy.name}")
     print(f"Detected {result.entity_count()} entity/entities "
           f"({result.num_tokenized} tokenized, {result.num_redacted} redacted)\n")
-    for ent in sorted(result.entities, key=lambda e: (e.entity_type.value, e.index)):
-        token = make_token(ent.entity_type, ent.index)
-        conf = max((s.confidence for s in ent.members), default=0.0)
-        print(f"  {token:<20} {ent.entity_type.value:<14} "
-              f"conf={conf:.2f}  {ent.canonical!r}")
+    for item in report:
+        print(f"  {item['token']:<20} {item['type']:<14} "
+              f"conf={item['confidence']:.2f}  x{item['occurrences']:<3} {item['value']!r}")
     if result.leak_report and not result.leak_report.clean:
         print(f"\n[leak-scan] {result.leak_report.summary()}", file=sys.stderr)
     from .reidrisk import assess

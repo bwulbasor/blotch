@@ -9,6 +9,7 @@ Only the pseudonymised text should ever leave the device; the vault stays local.
 from __future__ import annotations
 
 import re
+from collections import Counter
 from dataclasses import dataclass, field
 
 from .detectors import detect_all
@@ -103,7 +104,8 @@ def sanitize(text: str, policy: Policy, *, use_ner: bool = True,
     # Not `vault or Vault()`: an empty Vault is falsy (its __len__ is 0), which
     # would silently discard a shared vault on the first, still-empty call.
     vault = Vault() if vault is None else vault
-    spans = detect_all(text, use_ner=use_ner, use_spacy=use_spacy)
+    spans = detect_all(text, use_ner=use_ner, use_spacy=use_spacy,
+                       recognizers=policy.recognizers)
     spans = resolve_overlaps(spans)
     entities = resolve(spans)
 
@@ -126,6 +128,7 @@ def sanitize(text: str, policy: Policy, *, use_ner: bool = True,
         else:  # REDACT
             replacement = _REDACTED
             n_red += 1
+        entity.replacement = replacement
         econf = max((m.confidence for m in entity.members), default=0.5)
         for span in entity.members:
             edits.append((span.start, span.end, replacement, span.confidence))
@@ -219,8 +222,33 @@ def sanitize(text: str, policy: Policy, *, use_ner: bool = True,
         edit_confidence=applied_conf,
     )
     if run_leak_scan:
-        result.leak_report = scan(out, vault)
+        result.leak_report = scan(out, vault, recognizers=policy.recognizers)
     return result
+
+
+def entity_report(result: SanitizeResult, policy: Policy) -> list[dict]:
+    """Per-entity summary of what :func:`sanitize` acted on (inspect / audit UIs).
+
+    ``occurrences`` counts every replacement actually applied for the entity,
+    including ones caught by propagation (a later bare surname), not just the
+    spans a detector flagged. Redacted entities share "[REDACTED]", so theirs
+    falls back to the detected-span count.
+    """
+
+    counts = Counter(rep for _, _, rep in result.edit_spans)
+    report = []
+    for e in sorted(result.entities, key=lambda e: (e.entity_type.value, e.index)):
+        action = policy.action_for(e.entity_type)
+        report.append({
+            "token": e.replacement,
+            "type": e.entity_type.value,
+            "value": e.canonical,
+            "action": action.value,
+            "confidence": round(max((s.confidence for s in e.members), default=0.0), 2),
+            "occurrences": (counts[e.replacement] if action == Action.TOKENIZE
+                            else len(e.members)),
+        })
+    return report
 
 
 def preview(text: str, policy: Policy, *, block: str = "█",
@@ -229,18 +257,19 @@ def preview(text: str, policy: Policy, *, block: str = "█",
 
     Sensitive spans become blocks of ``block`` characters. This shows the user
     what will be hidden *before* anything is transmitted.
+
+    Built from the pipeline's own applied edits, so it masks exactly what
+    :func:`sanitize` replaces - including propagated occurrences and custom
+    recognizers - rather than re-deriving a (subtly different) answer.
     """
 
-    spans = detect_all(text, use_ner=use_ner, use_spacy=use_spacy)
-    spans = resolve_overlaps(spans)
-    entities = resolve(spans)
-    edits: list[tuple[int, int]] = []
-    for entity in entities:
-        if policy.action_for(entity.entity_type) == Action.KEEP:
-            continue
-        edits.extend((s.start, s.end) for s in entity.members)
-    edits.sort(key=lambda e: e[0], reverse=True)
-    out = text
-    for start, end in edits:
-        out = out[:start] + block * (end - start) + out[end:]
-    return out
+    result = sanitize(text, policy, use_ner=use_ner, use_spacy=use_spacy,
+                      run_leak_scan=False)
+    parts: list[str] = []
+    pos = 0
+    for start, end, _replacement in result.edit_spans:  # sorted, non-overlapping
+        parts.append(text[pos:start])
+        parts.append(block * (end - start))
+        pos = end
+    parts.append(text[pos:])
+    return "".join(parts)

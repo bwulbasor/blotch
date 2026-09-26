@@ -20,14 +20,9 @@ from __future__ import annotations
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from .detectors import detect_all
-from .leakscan import scan
-from .pipeline import sanitize
+from .pipeline import entity_report, sanitize
 from .policy import BUILTIN, get_policy
 from .rehydrate import restore
-from .resolver import resolve
-from .spans import resolve_overlaps
-from .tokens import make_token
 from .vault import Vault
 
 MAX_BODY = 32 * 1024 * 1024  # 32 MiB (base64-encoded PDF uploads)
@@ -104,22 +99,14 @@ class _Handler(BaseHTTPRequestHandler):
 
 
 def _inspect(data: dict) -> dict:
+    # Goes through the real pipeline (not a parallel re-implementation), so it
+    # reports exactly what /sanitize would act on - propagated occurrences and
+    # the policy's custom recognizers included.
     text = data["text"]
     policy = get_policy(data.get("policy", "personal"))
     use_spacy = data.get("use_spacy", True)
-    spans = resolve_overlaps(detect_all(text, use_spacy=use_spacy))
-    entities = resolve(spans)
-    items = []
-    for ent in entities:
-        if policy.action_for(ent.entity_type).value == "keep":
-            continue
-        items.append({
-            "token": make_token(ent.entity_type, ent.index),
-            "type": ent.entity_type.value,
-            "value": ent.canonical,
-            "confidence": max((s.confidence for s in ent.members), default=0.0),
-            "occurrences": len(ent.members),
-        })
+    result = sanitize(text, policy, use_spacy=use_spacy, run_leak_scan=False)
+    items = entity_report(result, policy)
     return {"policy": policy.name, "count": len(items), "entities": items}
 
 

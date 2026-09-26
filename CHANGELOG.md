@@ -5,6 +5,25 @@ follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Architecture: custom recognizers, one lexicon, one pipeline
+- **Custom recognizers**: policies can declare organisation-specific identifier
+  formats (`"recognizers": [{name, pattern, entity_type, group?, confidence?,
+  ignore_case?}]`) or add them in code via `Policy.with_recognizers(...)`. They
+  run in detection *and* in the outbound leak scanner. Strict load-time
+  validation rejects bad regexes, patterns that match empty text, unknown fields
+  and types, duplicate names, and recognizers whose type the policy would keep.
+- **Shared lexicon** (`blotch.lexicon`): title words, particles, org suffixes,
+  sentence openers and the non-name stoplist now live in one module used by the
+  NER heuristic, the resolver and the pipeline. The resolver's separate title
+  list had drifted (missing "st").
+- **One source of truth for "what gets hidden"**: `preview()`, the CLI
+  `inspect`, and the daemon's `/inspect` now derive from the pipeline's applied
+  edits instead of re-running detection themselves. This fixes a preview bug
+  (occurrences caught only by propagation, e.g. a later bare surname, were shown
+  unmasked while the real output hid them) and makes occurrence counts include
+  propagated mentions. New `entity_report()`; `Entity.replacement` records each
+  entity's token.
+
 ### Detection quality & leak robustness
 - **Leak fix**: a person name containing a gazetteer city word ("Kianna London
   Barrows") is no longer dropped in overlap resolution - confidence is now

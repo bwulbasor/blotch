@@ -15,10 +15,11 @@ Typical use::
 
 from __future__ import annotations
 
+from .detectors.custom import Recognizer
 from .gateway import Gateway, GatewayResult, LeakBlocked, echo_provider
 from .leakscan import LeakReport, scan
-from .pipeline import SanitizeResult, preview, sanitize
-from .policy import Action, Policy, get_policy
+from .pipeline import SanitizeResult, entity_report, preview, sanitize
+from .policy import Action, Policy, get_policy, policy_from_dict
 from .rehydrate import RestoreResult, restore, validate_response
 from .reidrisk import ReidRisk, RiskLevel, assess as assess_reid_risk
 from .spans import EntityType, Span
@@ -28,7 +29,8 @@ __version__ = "0.1.0"
 
 __all__ = [
     "sanitize", "restore", "preview", "scan", "validate_response",
-    "get_policy", "Policy", "Action", "Vault", "EntityType", "Span",
+    "entity_report", "get_policy", "policy_from_dict", "Policy", "Action",
+    "Recognizer", "Vault", "EntityType", "Span",
     "SanitizeResult", "RestoreResult", "LeakReport",
     "Gateway", "GatewayResult", "LeakBlocked", "echo_provider",
     "ReidRisk", "RiskLevel", "assess_reid_risk", "__version__",

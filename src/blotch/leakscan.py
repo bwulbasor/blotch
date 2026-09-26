@@ -12,7 +12,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from .detectors import deterministic
+from .detectors import custom, deterministic
 from .spans import Span
 from .tokens import TOKEN_RE
 from .vault import Vault
@@ -72,7 +72,7 @@ def _present_as_token(value: str, text: str) -> bool:
 
 
 def scan(sanitized_text: str, vault: Vault | None = None,
-         threshold: float = BLOCK_THRESHOLD) -> LeakReport:
+         threshold: float = BLOCK_THRESHOLD, recognizers=()) -> LeakReport:
     """Scan text destined for an external service. Returns a :class:`LeakReport`.
 
     Two checks:
@@ -80,8 +80,10 @@ def scan(sanitized_text: str, vault: Vault | None = None,
     1. **Known-value check** - no original value from the vault may appear as a
        substring (defends against a detector that tokenised one occurrence but
        missed another).
-    2. **Fresh-detection check** - re-run deterministic detectors; any residual
-       high-confidence span (that is not itself a token) blocks.
+    2. **Fresh-detection check** - re-run the deterministic detectors *and* any
+       custom ``recognizers``; any residual high-confidence span (that is not
+       itself a token) blocks. Custom recognizers are enforced here too, so an
+       organisation's own ID format can't slip out untokenised.
     """
 
     leaked_values: list[str] = []
@@ -96,7 +98,8 @@ def scan(sanitized_text: str, vault: Vault | None = None,
 
     residual: list[Span] = []
     token_spans = [(m.start(), m.end()) for m in TOKEN_RE.finditer(sanitized_text)]
-    for span in deterministic.detect(sanitized_text):
+    fresh = deterministic.detect(sanitized_text) + custom.detect(sanitized_text, recognizers)
+    for span in fresh:
         if span.confidence < threshold:
             continue
         if any(ts <= span.start and span.end <= te for ts, te in token_spans):

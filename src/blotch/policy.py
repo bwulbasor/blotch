@@ -12,6 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 
+from .detectors.custom import Recognizer
 from .spans import EntityType
 
 
@@ -26,9 +27,23 @@ class Policy:
     name: str
     actions: dict[EntityType, Action] = field(default_factory=dict)
     default: Action = Action.KEEP
+    #: Organisation-specific detectors run alongside the built-in ones (and by
+    #: the outbound leak scanner). See :mod:`blotch.detectors.custom`.
+    recognizers: tuple[Recognizer, ...] = ()
 
     def action_for(self, entity_type: EntityType) -> Action:
         return self.actions.get(entity_type, self.default)
+
+    def with_recognizers(self, recognizers) -> "Policy":
+        """Return a copy of this policy that also runs ``recognizers``.
+
+        Handy for adding a custom ID format to a built-in policy::
+
+            get_policy("personal").with_recognizers([Recognizer(...)])
+        """
+        combined = tuple(self.recognizers) + tuple(recognizers)
+        _check_recognizers(combined, self)
+        return Policy(self.name, dict(self.actions), self.default, combined)
 
 
 _ALL = list(EntityType)
@@ -102,7 +117,35 @@ def policy_from_dict(data: dict) -> Policy:
         except ValueError:
             raise ValueError(f"unknown entity type in policy: {key!r}")
         actions[etype] = Action(val)
-    return Policy(name=name, actions=actions, default=default)
+    raw = data.get("recognizers", [])
+    if not isinstance(raw, list):
+        raise ValueError("policy 'recognizers' must be a list")
+    recognizers = tuple(Recognizer.from_dict(r) for r in raw)
+    policy = Policy(name=name, actions=actions, default=default,
+                    recognizers=recognizers)
+    _check_recognizers(recognizers, policy)
+    return policy
+
+
+def _check_recognizers(recognizers, policy: Policy) -> None:
+    """Reject recognizer sets that would silently do nothing.
+
+    A recognizer whose entity type the policy KEEPs would detect the value and
+    then leave it in the clear - exactly the quiet leak a custom detector is
+    meant to prevent - so that is an error, not a no-op. Names must be unique so
+    the review UI / audit trail can tell recognizers apart.
+    """
+    seen: set[str] = set()
+    for rec in recognizers:
+        if rec.name in seen:
+            raise ValueError(f"duplicate recognizer name {rec.name!r}")
+        seen.add(rec.name)
+        if policy.action_for(rec.entity_type) == Action.KEEP:
+            raise ValueError(
+                f"recognizer {rec.name!r} emits {rec.entity_type.value}, but policy "
+                f"{policy.name!r} keeps {rec.entity_type.value} in the clear; add "
+                f'"actions": {{"{rec.entity_type.value}": "tokenize"}} (or "redact")'
+            )
 
 
 def load_policy_file(path: str) -> Policy:
