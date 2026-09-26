@@ -158,6 +158,7 @@ _TEMPLATE = """<!doctype html>
       <option value="total">Total redaction ([REDACTED])</option>
       <option value="blackout">Blackout (████)</option>
     </select></label>
+  <button id="uncertain" title="keep every low-confidence guess in the clear (then re-mask any that are real)">Keep all uncertain</button>
   <button id="toktoggle">Tokens inline</button>
   <button id="copy" class="primary">Copy sanitized</button>
 </header>
@@ -377,6 +378,17 @@ each token points to. Everything stays in this page.</div>
   }}
 
   document.getElementById('mode').onchange = render;
+  const isLow = s => (!s.user && typeof s.conf === 'number' && s.conf < 0.6);
+  document.getElementById('uncertain').onclick = (e) => {{
+    const low = state.spans.filter(isLow);
+    if (!low.length) return;
+    // if any uncertain span is still masked, keep them all; else re-mask them
+    const anyMasked = low.some(s => !s.kept);
+    for (const s of low) s.kept = anyMasked;
+    e.target.classList.toggle('on', anyMasked);
+    e.target.textContent = anyMasked ? 'Re-mask uncertain' : 'Keep all uncertain';
+    render();
+  }};
   document.getElementById('toktoggle').onclick = (e) => {{
     document.body.classList.toggle('showtok');
     e.target.classList.toggle('on', document.body.classList.contains('showtok'));

@@ -71,3 +71,12 @@ def test_review_auto_spans_carry_confidence():
     assert by_val.get("a.martinez@example.com", 0) >= 0.9   # structural = high
     assert "conf" in spans[0]
     assert ".ent.low" in out  # the low-confidence style is present
+
+
+def test_review_has_bulk_uncertain_toggle():
+    # a one-click "keep all uncertain" control for fast false-positive triage
+    out = render_review_html("Customer called about it.", get_policy("personal"),
+                             use_spacy=False)
+    assert 'id="uncertain"' in out
+    assert "Keep all uncertain" in out
+    assert "isLow" in out  # the low-confidence predicate the toggle uses
