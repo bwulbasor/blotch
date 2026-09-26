@@ -63,6 +63,14 @@ def test_numbered_and_directional_streets():
     # numbered / directional US streets ("78244 N 5th Street", "350 42nd Avenue")
     for s in ["arranged at 78244 N 5th Street", "office at 350 42nd Avenue"]:
         assert EntityType.ADDRESS in _types(s), s
+
+
+def test_zip_after_unit_but_not_bare_numbers():
+    # a ZIP right after a secondary-address unit is an address; a bare number list
+    # (invoice ids, quantities) must not be mistaken for one.
+    assert EntityType.ADDRESS in _types("Ship to Suite 709, 48188 today")
+    assert EntityType.ADDRESS in _types("Apt. 881, 28802.")
+    assert EntityType.ADDRESS not in _types("we ordered 12345, 67890 units")
     assert EntityType.ADDRESS in _types("lives at Hauptstraße 12 now")
     assert EntityType.ADDRESS in _types("postcode SW1A 1AA on file")
 

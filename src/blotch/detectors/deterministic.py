@@ -63,6 +63,14 @@ _UK_POSTCODE = re.compile(r"\b[A-Z]{1,2}\d[A-Z\d]?\s+\d[A-Z]{2}\b")
 # US "State ZIP" in address context (comma-anchored to avoid matching "IN 12345"
 # style false positives): e.g. "Springfield, IL 62704" / "..., CA 90210-1234".
 _US_STATE_ZIP = re.compile(r",\s*(?P<sz>[A-Z]{2}\s+\d{5}(?:-\d{4})?)\b")
+# A ZIP that sits in an address context: right after a secondary-address unit
+# ("Suite 709, 48188", "Apt. 881, 28802"). Anchored to the unit + comma, so it
+# does not match bare 5-digit numbers elsewhere (invoice ids, quantities, years).
+_ZIP_AFTER_UNIT = re.compile(
+    r"(?:Suite|Ste|Apt|Apartment|Unit|Floor|Fl|Rm|Room|P\.?O\.? Box|Box)\.?[ \t]*"
+    r"#?[ \t]*[0-9A-Za-z]+[ \t]*,[ \t]*(?P<z>\d{5}(?:-\d{4})?)\b",
+    re.IGNORECASE,
+)
 # Explicitly-labelled postal code ("ZIP code 64526", "postal code 99578"). A bare
 # 5-digit number is too ambiguous to catch, but a labelled one is unambiguous.
 _ZIP_LABELLED = re.compile(r"\b(?:zip|postal|post)[ \t]*(?:code)?[ \t]*[:#]?[ \t]*"
@@ -182,6 +190,9 @@ def detect(text: str) -> list[Span]:
     for m in _ZIP_LABELLED.finditer(text):
         spans.append(Span(m.start("z"), m.end("z"), EntityType.ADDRESS,
                           m.group("z"), 0.8, "zip_labelled"))
+    for m in _ZIP_AFTER_UNIT.finditer(text):
+        spans.append(Span(m.start("z"), m.end("z"), EntityType.ADDRESS,
+                          m.group("z"), 0.75, "zip_after_unit"))
     for m in _BIC.finditer(text):
         spans.append(Span(m.start("bic"), m.end("bic"), EntityType.ACCOUNT_ID,
                           m.group("bic"), 0.9, "bic"))
