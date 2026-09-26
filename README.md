@@ -286,9 +286,9 @@ distinguishing word (not just `The`/`European` + `Court`) cut over-redaction fro
 
 A second benchmark, [AI4Privacy pii-masking](https://huggingface.co/datasets/ai4privacy/pii-masking-200k),
 covers the contact/financial PII that legal text lacks. On 2,000 English rows,
-recall on the types blotch targets is **93.5% (heuristic) / 93.9% (spaCy
-union)** — the heuristic nearly matches spaCy, which matters because spaCy needs
-Python ≤ 3.13. The deterministic detectors are near-perfect:
+recall on the types blotch targets is **93.8% (heuristic)** — and the heuristic
+nearly matches the spaCy union, which matters because spaCy needs Python ≤ 3.13.
+The deterministic detectors are near-perfect:
 
 | Detector | recall | | Detector | recall |
 |---|---|---|---|---|
@@ -301,6 +301,27 @@ Python ≤ 3.13. The deterministic detectors are near-perfect:
 The remaining gap is context-free bare numbers (a lone building number or ZIP,
 `MM/YY` dates) — catching those means redacting every short number, so they're
 left out by design (the street/city/state around them are already caught).
+
+### vs. Microsoft Presidio
+
+Presidio is the open-source PII detector most tools benchmark against, so
+`benchmarks/presidio_compare.py` runs both over the same data, scored
+identically (span-overlap recall / precision, entity-type-agnostic since the two
+use different taxonomies):
+
+| Benchmark | blotch recall | Presidio recall |
+|---|---|---|
+| **TAB — real court docs, DIRECT identifiers** (the leak metric) | **100%** | **62%** |
+| AI4Privacy — all PII types, 300 docs | **79%** | 60% |
+
+On real court documents Presidio misses nearly **4 in 10 direct identifiers** —
+each a leak. blotch catches them all. Presidio is the more *precise* of the two
+on AI4Privacy (≈96% vs ≈85%): it flags fewer things, at the cost of recall. That
+is exactly the trade-off blotch makes on purpose — **for a privacy gateway a
+miss is a leak and a false positive is one click in the review screen**, so
+blotch biases to recall and recovers precision with the human review, rather
+than silently under-detecting. (Run it yourself in the spaCy venv:
+`python -m benchmarks.presidio_compare`.)
 
 **Over-redaction / precision** was worked the same data-driven way. The
 capitalisation heuristic flagged common capitalised words as names
