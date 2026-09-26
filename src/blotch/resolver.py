@@ -17,6 +17,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
+from .lexicon import TITLE_WORDS
 from .spans import EntityType, Span
 
 # Types whose identity is the (normalised) literal value.
@@ -26,7 +27,11 @@ _VALUE_IDENTITY = {
     EntityType.CASE_ID, EntityType.ACCOUNT_ID, EntityType.DATE, EntityType.DOB,
     EntityType.ORGANIZATION, EntityType.LOCATION, EntityType.ADDRESS,
 }
-_TITLE_RE = re.compile(r"^(?:mr|mrs|ms|miss|dr|prof|herr|frau|sir|madam|mx)\.?\s+", re.I)
+# Built from the shared lexicon (longest first) so the resolver strips exactly the
+# honorifics the NER layer recognises - they previously kept separate lists.
+_TITLE_RE = re.compile(
+    r"^(?:" + "|".join(sorted(TITLE_WORDS, key=len, reverse=True)) + r")\.?\s+", re.I
+)
 
 
 @dataclass
