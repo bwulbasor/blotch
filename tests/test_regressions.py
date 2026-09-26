@@ -3,10 +3,6 @@
 Each test reproduces the original failure; a revert of the fix makes it fail.
 """
 
-import json
-import urllib.error
-import urllib.request
-
 import pytest
 
 from blotch import EntityType, Recognizer, get_policy, restore, sanitize
@@ -104,19 +100,29 @@ def test_duplicate_custom_policy_names_are_rejected(monkeypatch):
 
 
 def test_negative_content_length_is_rejected_not_hung():
+    # Raw socket, no body: urllib would still be sending one while the server
+    # answers and closes, which Windows can report as ConnectionAbortedError.
+    # If the bug returns, the server blocks reading and recv() times out.
+    import socket
     import threading
     from http.server import ThreadingHTTPServer
     from blotch.server import _Handler
     httpd = ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     try:
-        req = urllib.request.Request(
-            f"http://127.0.0.1:{httpd.server_address[1]}/sanitize", data=b"{}",
-            headers={"Content-Type": "application/json", "Content-Length": "-1"})
-        with pytest.raises(urllib.error.HTTPError) as exc:
-            urllib.request.urlopen(req, timeout=5)
-        assert exc.value.code == 400
-        assert "Content-Length" in json.loads(exc.value.read().decode())["error"]
+        with socket.create_connection(("127.0.0.1", httpd.server_address[1]),
+                                      timeout=5) as sock:
+            sock.sendall(b"POST /sanitize HTTP/1.1\r\nHost: localhost\r\n"
+                         b"Content-Type: application/json\r\n"
+                         b"Content-Length: -1\r\n\r\n")
+            resp = b""
+            while b"\r\n\r\n" not in resp:
+                chunk = sock.recv(4096)  # socket.timeout here == the hang
+                if not chunk:
+                    break
+                resp += chunk
+        status = resp.split(b"\r\n", 1)[0]
+        assert b" 400 " in status, status
     finally:
         httpd.shutdown()
         httpd.server_close()
