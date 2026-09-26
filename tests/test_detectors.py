@@ -65,6 +65,20 @@ def test_numbered_and_directional_streets():
         assert EntityType.ADDRESS in _types(s), s
 
 
+def test_age_detected_but_not_durations():
+    for s in ["patient is 88 years old", "a 45-year-old man", "aged 45", "age: 72"]:
+        assert EntityType.AGE in _types(s), s
+    # durations are not ages
+    for s in ["5 years later", "3 years experience", "10 years ago"]:
+        assert EntityType.AGE not in _types(s), s
+
+
+def test_time_detected():
+    for s in ["seen at 10:18 PM", "arrived 23:05", "meeting at 4 PM", "start 09:00:30"]:
+        assert EntityType.TIME in _types(s), s
+    assert EntityType.TIME not in _types("final score 3:2 today")
+
+
 def test_zip_after_unit_but_not_bare_numbers():
     # a ZIP right after a secondary-address unit is an address; a bare number list
     # (invoice ids, quantities) must not be mistaken for one.

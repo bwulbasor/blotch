@@ -37,6 +37,8 @@ class EntityType(str, Enum):
     MAC = "MAC"
     COORDINATES = "COORDINATES"
     CRYPTO = "CRYPTO"
+    AGE = "AGE"          # quasi-identifier ("88 years old", "aged 45")
+    TIME = "TIME"        # clock time ("10:18 PM", "4 PM")
 
     def __str__(self) -> str:  # pragma: no cover - trivial
         return self.value

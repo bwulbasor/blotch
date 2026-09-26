@@ -94,6 +94,21 @@ _COORD = re.compile(
     r"[-+]?\d{1,2}\.\d{3,}[ \t]*,[ \t]*[-+]?\d{1,3}\.\d{3,}"
     r"|\[[-+]?\d{1,3}\.\d+[ \t]*,[ \t]*[-+]?\d{1,3}\.\d+\]"
 )
+# Age as a quasi-identifier - only the *unambiguous* forms, so a duration
+# ("5 years later", "3 years experience") is never mistaken for an age:
+#   "88 years old", "45-year-old", "aged 45", "age 45", "age: 45"
+_AGE = re.compile(
+    r"\b\d{1,3}[ \t]*-?[ \t]*years?[ \t]*-?[ \t]*old\b"
+    r"|\b\d{1,3}-year-old\b"
+    r"|\baged?[ \t:]+\d{1,3}\b",
+    re.IGNORECASE,
+)
+# Clock times: "10:18 PM", "23:05", "9:00:30", "4 PM". A 2-digit minute avoids
+# ratios/verses like "3:2"; a bare "4" needs the AM/PM marker.
+_TIME = re.compile(
+    r"\b\d{1,2}:\d{2}(?::\d{2})?[ \t]*(?:[AaPp]\.?[Mm]\.?)?\b"
+    r"|\b\d{1,2}[ \t]*[AaPp]\.?[Mm]\.?\b"
+)
 # Court / reference numbers like "AZ 73 C 226", "17 C 391/26", "5 Ob 12/25":
 # number, short letter code, number, optional /year. Distinctive enough that a
 # bare digit-letter-digit run in prose rarely collides.
@@ -207,6 +222,8 @@ def detect(text: str) -> list[Span]:
             spans.append(Span(m.start(), m.end(), EntityType.PERSON, m.group(0),
                               0.55, "initials"))
     spans += _yield(_DATE, text, EntityType.DATE, "date", 0.7)
+    spans += _yield(_AGE, text, EntityType.AGE, "age", 0.8)
+    spans += _yield(_TIME, text, EntityType.TIME, "time", 0.75)
 
     # Validated detectors: only emit on checksum pass (high precision).
     for m in _IBAN.finditer(text):

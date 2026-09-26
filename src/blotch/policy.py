@@ -58,7 +58,10 @@ PERSONAL = _mode(
 MEDICAL = _mode(
     "medical",
     _CONTACT + _IDS + [EntityType.DOB, EntityType.DATE, EntityType.ORGANIZATION,
-                       EntityType.IP, EntityType.URL],
+                       EntityType.IP, EntityType.URL,
+                       # HIPAA quasi-identifiers: age (esp. > 89) and clock times
+                       # (admission/appointment) can re-identify with other fields.
+                       EntityType.AGE, EntityType.TIME],
 )
 
 #: Parties, witnesses, addresses, case numbers, org identifiers.
