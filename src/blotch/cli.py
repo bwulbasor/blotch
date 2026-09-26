@@ -100,7 +100,8 @@ def _cmd_sanitize(args) -> int:
 
     from .docwriter import VerificationError, write_document
     try:
-        write_document(args.out, result.sanitized_text, vault=result.vault, verify=True)
+        write_document(args.out, result.sanitized_text, vault=result.vault, verify=True,
+                       recognizers=policy.recognizers)
     except VerificationError as exc:
         print(f"[BLOCKED] regenerated output failed verification: {exc}", file=sys.stderr)
         return 3
@@ -219,7 +220,7 @@ def _cmd_batch(args) -> int:
         vault_path = os.path.join(args.vaultdir, stem + ".cbv")
         try:
             write_document(out_path, result.sanitized_text, vault=result.vault,
-                           verify=True)
+                           verify=True, recognizers=policy.recognizers)
         except VerificationError as exc:
             print(f"  BLOCK  {rel}: output failed verification: {exc}", file=sys.stderr)
             blocked += 1
@@ -246,7 +247,8 @@ def _cmd_batch(args) -> int:
 
 def _cmd_serve(args) -> int:
     from .server import serve
-    serve(host=args.host, port=args.port)
+    extra = [load_policy_file(p) for p in (args.policy_file or [])]
+    serve(host=args.host, port=args.port, policies=extra)
     return 0
 
 
@@ -347,6 +349,9 @@ def build_parser() -> argparse.ArgumentParser:
     srv = sub.add_parser("serve", help="run the local gateway HTTP daemon")
     srv.add_argument("--host", default="127.0.0.1", help="bind address (loopback only)")
     srv.add_argument("--port", type=int, default=8723)
+    srv.add_argument("--policy-file", action="append", metavar="JSON",
+                     help="also offer this custom policy (e.g. with recognizers) in "
+                          "the web UI; repeatable")
     srv.set_defaults(func=_cmd_serve)
 
     bench = sub.add_parser("benchmark", parents=[common],

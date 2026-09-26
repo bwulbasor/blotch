@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import io
 import os
+from dataclasses import dataclass, field
 
 _IMAGE = (".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp")
 SUPPORTED = (".txt", ".md", ".text", ".csv", ".tsv", ".log", ".json", ".pdf",
@@ -49,23 +50,44 @@ def load_text(path: str, ocr: str = "auto") -> str:
     raise ValueError(f"unsupported file type {ext!r}; supported: {', '.join(SUPPORTED)}")
 
 
+@dataclass
+class Extracted:
+    """Text pulled from a document, plus where it came from."""
+
+    text: str
+    #: 0-based pages whose text came from OCR (for an image: ``[0]``). Empty when
+    #: every page had a real text layer. Lets callers flag best-effort text
+    #: without re-parsing the document to guess.
+    ocr_pages: list[int] = field(default_factory=list)
+
+    @property
+    def ocr_used(self) -> bool:
+        return bool(self.ocr_pages)
+
+
 def extract_bytes(data: bytes, ext: str, ocr: str = "auto") -> str:
     """Extract plain text from in-memory document ``data`` given its extension.
 
     Used by the daemon's upload endpoint so a PDF/DOCX can be reviewed without
     writing it to disk. ``ext`` is like ".pdf" / ".docx" / ".txt". For a scanned
-    PDF, ``ocr`` controls the fallback (see ``_OCR_MODES``).
+    PDF, ``ocr`` controls the fallback (see ``_OCR_MODES``). See
+    :func:`extract_document` for the variant that also reports OCR'd pages.
     """
+    return extract_document(data, ext, ocr=ocr).text
+
+
+def extract_document(data: bytes, ext: str, ocr: str = "auto") -> Extracted:
+    """Like :func:`extract_bytes`, but also reports which pages were OCR'd."""
     ext = ext.lower()
     if ocr not in _OCR_MODES:
         raise ValueError(f"ocr must be one of {_OCR_MODES}, got {ocr!r}")
     if ext in _PLAIN:
-        return data.decode("utf-8", errors="replace")
+        return Extracted(data.decode("utf-8", errors="replace"))
     if ext in _IMAGE:
         from . import ocr as _ocr
         if ocr == "never":
-            return ""  # an image has no text layer; OCR is the only reader
-        return _ocr.ocr_image(data)  # raises a clear error if no engine
+            return Extracted("")  # an image has no text layer; OCR is the only reader
+        return Extracted(_ocr.ocr_image(data), [0])  # raises clearly if no engine
     if ext == ".pdf":
         return _extract_pdf_bytes(data, ocr)
     if ext == ".docx":
@@ -73,11 +95,11 @@ def extract_bytes(data: bytes, ext: str, ocr: str = "auto") -> str:
             import docx
         except Exception as exc:
             raise RuntimeError("DOCX support needs the 'docs' extra") from exc
-        return "\n".join(p.text for p in docx.Document(io.BytesIO(data)).paragraphs)
+        return Extracted("\n".join(p.text for p in docx.Document(io.BytesIO(data)).paragraphs))
     raise ValueError(f"unsupported file type {ext!r}")
 
 
-def _extract_pdf_bytes(data: bytes, ocr: str) -> str:
+def _extract_pdf_bytes(data: bytes, ocr: str) -> Extracted:
     """Read a PDF's text layer, falling back to OCR per the ``ocr`` mode.
 
     In ``auto`` mode this is *per-page hybrid*: only the pages whose own text
@@ -89,7 +111,8 @@ def _extract_pdf_bytes(data: bytes, ocr: str) -> str:
     from . import ocr as _ocr
 
     if ocr == "always":
-        return _ocr.ocr_pdf(data)
+        pages = _ocr.ocr_pdf_pages(data)
+        return Extracted("\n".join(pages[i] for i in sorted(pages)), sorted(pages))
 
     try:
         from pypdf import PdfReader
@@ -98,16 +121,16 @@ def _extract_pdf_bytes(data: bytes, ocr: str) -> str:
     page_texts = [(p.extract_text() or "") for p in PdfReader(io.BytesIO(data)).pages]
 
     if ocr == "never" or not _ocr.ocr_available():
-        return "\n".join(page_texts)
+        return Extracted("\n".join(page_texts))
 
     # Pages that look empty on their own are candidates for OCR.
     scanned = [i for i, t in enumerate(page_texts) if _ocr.looks_scanned(t, 1)]
     if not scanned:
-        return "\n".join(page_texts)
+        return Extracted("\n".join(page_texts))
     recovered = _ocr.ocr_pdf_pages(data, scanned)
     for i, text in recovered.items():
         page_texts[i] = text
-    return "\n".join(page_texts)
+    return Extracted("\n".join(page_texts), sorted(recovered))
 
 
 def _load_docx(path: str) -> str:  # pragma: no cover - optional dependency

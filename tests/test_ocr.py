@@ -149,3 +149,7 @@ def test_hybrid_ocrs_only_the_scanned_page():
     text = extract_bytes(data, ".pdf", ocr="auto")
     assert "Bob Textlayer" in text        # native text preserved
     assert "Carol" in text and "Pixel" in text  # scanned page OCR'd
+
+    # ...and the loader reports exactly which page came from OCR (0-based)
+    from blotch.ingest import extract_document
+    assert extract_document(data, ".pdf").ocr_pages == [1]

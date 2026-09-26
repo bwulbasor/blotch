@@ -189,10 +189,20 @@ sanitized text) plus a JSON API:
 
 ```
 GET  /                                web UI
-POST /inspect   {"text","policy"}   -> detected entities
+POST /inspect   {"text","policy"}   -> detected entities (with occurrence counts)
 POST /sanitize  {"text","policy"}   -> {sanitized, vault, leak}
 POST /restore   {"text","vault"}    -> {restored, invented, dropped}
+POST /review    {"text","policy"}   -> {html} interactive review page
+POST /extract   {"filename","content"(base64)} -> {text, ocr_used, ocr_pages}
 GET  /policies   GET /health
+```
+
+To use your own policy (e.g. with [custom recognizers](#custom-recognizers-your-own-id-formats))
+from the web UI, load it at startup — it appears in the policy dropdown next to
+the built-ins (a custom policy may not reuse a built-in name):
+
+```bash
+blotch serve --policy-file acme.json
 ```
 
 Or run it in a container (publish to loopback only — it returns vault material):

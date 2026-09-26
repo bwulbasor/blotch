@@ -23,6 +23,17 @@ follows [Keep a Changelog](https://keepachangelog.com/).
   unmasked while the real output hid them) and makes occurrence counts include
   propagated mentions. New `entity_report()`; `Entity.replacement` records each
   entity's token.
+- **Custom policies in the daemon**: `blotch serve --policy-file acme.json`
+  (repeatable) offers custom policies — and their recognizers — in the web UI
+  and API alongside the built-ins. A custom policy can't shadow a built-in name;
+  an unknown policy name is a clear 400.
+- **Verification can no longer false-pass**: if a written PDF/DOCX can't be
+  parsed back (e.g. `pypdf` missing), `write_document(verify=True)` now raises
+  instead of scanning the compressed bytes as text and reporting "clean". The
+  read-back scan also enforces the policy's recognizers.
+- **Loader reports OCR'd pages**: new `extract_document()` returns the text plus
+  the exact pages that came from OCR; the daemon uses it instead of re-parsing
+  each uploaded PDF to guess, and the UI names the OCR'd pages.
 
 ### Detection quality & leak robustness
 - **Leak fix**: a person name containing a gazetteer city word ("Kianna London

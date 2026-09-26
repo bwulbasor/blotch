@@ -29,12 +29,13 @@ class VerificationError(RuntimeError):
 
 
 def write_document(path: str, sanitized_text: str, *, vault: Vault | None = None,
-                   verify: bool = True) -> None:
+                   verify: bool = True, recognizers=()) -> None:
     """Regenerate a sanitised document at ``path`` from ``sanitized_text``.
 
     If ``verify`` and a ``vault`` is given, the produced file is read back and
     scanned; any surviving original value raises :class:`VerificationError`
-    rather than silently shipping a leak.
+    rather than silently shipping a leak. Pass the policy's ``recognizers`` so
+    the read-back scan also enforces custom identifier formats.
     """
 
     ext = os.path.splitext(path)[1].lower()
@@ -48,7 +49,7 @@ def write_document(path: str, sanitized_text: str, *, vault: Vault | None = None
         raise ValueError(f"unsupported output type {ext!r}")
 
     if verify and vault is not None:
-        report = _verify_file(path, ext, vault)
+        report = _verify_file(path, ext, vault, recognizers)
         if not report.clean:
             raise VerificationError(report.summary())
 
@@ -110,16 +111,20 @@ def _wrap(line: str, width: int) -> list[str]:
     return out
 
 
-def _verify_file(path: str, ext: str, vault: Vault) -> LeakReport:
+def _verify_file(path: str, ext: str, vault: Vault, recognizers=()) -> LeakReport:
     from .ingest import load_text
-    if ext in ("", ".txt", ".md", ".text", ".docx", ".pdf"):
+    if ext in (".docx", ".pdf"):
+        # A binary container must be *parsed* to check it. Falling back to
+        # reading the raw bytes as text (as this once did) scans compressed
+        # streams, finds nothing, and reports "clean" - a silent false pass.
         try:
-            text = load_text(path if ext else path)
-        except Exception:
-            # if we can't read it back, be conservative and re-scan the source
-            with open(path, encoding="utf-8", errors="replace") as fh:
-                text = fh.read()
-    else:  # pragma: no cover
+            text = load_text(path)
+        except Exception as exc:
+            raise VerificationError(
+                f"could not read the written {ext} back to verify it ({exc}); "
+                "install the 'docs' extra, or pass verify=False to skip verification"
+            ) from exc
+    else:
         with open(path, encoding="utf-8", errors="replace") as fh:
             text = fh.read()
-    return scan(text, vault)
+    return scan(text, vault, recognizers=recognizers)

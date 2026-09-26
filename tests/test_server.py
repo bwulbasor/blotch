@@ -39,6 +39,42 @@ def test_health_and_policies(base_url):
     assert "medical" in _get(base_url + "/policies")["policies"]
 
 
+@pytest.fixture()
+def isolated_policies(monkeypatch):
+    # give each test its own policy registry so registrations don't leak
+    import blotch.server as server
+    monkeypatch.setattr(server, "_POLICIES", dict(server._POLICIES))
+    return server
+
+
+def test_custom_policy_is_offered_and_used(base_url, isolated_policies):
+    from blotch.policy import policy_from_dict
+    corp = policy_from_dict({
+        "name": "acme", "default": "keep", "actions": {"ACCOUNT_ID": "tokenize"},
+        "recognizers": [{"name": "employee_id", "pattern": r"EMP-\d{5}",
+                         "entity_type": "ACCOUNT_ID"}]})
+    isolated_policies.register_policies([corp])
+    assert "acme" in _get(base_url + "/policies")["policies"]
+    out = _post(base_url + "/sanitize",
+                {"text": "badge EMP-10442", "policy": "acme", "use_spacy": False})
+    assert "EMP-10442" not in out["sanitized"]
+    assert "[[ACCOUNT_ID_001]]" in out["sanitized"]
+
+
+def test_custom_policy_cannot_shadow_a_builtin(isolated_policies):
+    from blotch.policy import Policy
+    with pytest.raises(ValueError, match="clashes"):
+        isolated_policies.register_policies([Policy("personal")])
+
+
+def test_unknown_policy_is_a_clear_400(base_url):
+    import urllib.error
+    with pytest.raises(urllib.error.HTTPError) as exc:
+        _post(base_url + "/sanitize", {"text": "x", "policy": "nope"})
+    assert exc.value.code == 400
+    assert "unknown policy" in json.loads(exc.value.read().decode())["error"]
+
+
 def test_web_ui_served(base_url):
     import urllib.request
     with urllib.request.urlopen(base_url + "/", timeout=5) as resp:

@@ -21,11 +21,23 @@ import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from .pipeline import entity_report, sanitize
-from .policy import BUILTIN, get_policy
+from .policy import BUILTIN, Policy
 from .rehydrate import restore
 from .vault import Vault
 
 MAX_BODY = 32 * 1024 * 1024  # 32 MiB (base64-encoded PDF uploads)
+
+# Policies the daemon offers: the built-ins plus any loaded at startup with
+# `blotch serve --policy-file`, so custom recognizers reach the web UI too.
+_POLICIES: dict[str, Policy] = dict(BUILTIN)
+
+
+def _resolve_policy(data: dict) -> Policy:
+    name = data.get("policy", "personal")
+    try:
+        return _POLICIES[name]
+    except KeyError:
+        raise ValueError(f"unknown policy {name!r}; choose from {sorted(_POLICIES)}")
 
 
 class _Handler(BaseHTTPRequestHandler):
@@ -65,7 +77,7 @@ class _Handler(BaseHTTPRequestHandler):
         elif self.path == "/health":
             self._send(200, {"ok": True})
         elif self.path == "/policies":
-            self._send(200, {"policies": sorted(BUILTIN)})
+            self._send(200, {"policies": sorted(_POLICIES)})
         else:
             self._send(404, {"error": "not found"})
 
@@ -103,7 +115,7 @@ def _inspect(data: dict) -> dict:
     # reports exactly what /sanitize would act on - propagated occurrences and
     # the policy's custom recognizers included.
     text = data["text"]
-    policy = get_policy(data.get("policy", "personal"))
+    policy = _resolve_policy(data)
     use_spacy = data.get("use_spacy", True)
     result = sanitize(text, policy, use_spacy=use_spacy, run_leak_scan=False)
     items = entity_report(result, policy)
@@ -112,7 +124,7 @@ def _inspect(data: dict) -> dict:
 
 def _sanitize(data: dict) -> dict:
     text = data["text"]
-    policy = get_policy(data.get("policy", "personal"))
+    policy = _resolve_policy(data)
     use_spacy = data.get("use_spacy", True)
     result = sanitize(text, policy, use_spacy=use_spacy)
     report = result.leak_report
@@ -131,29 +143,21 @@ def _extract(data: dict) -> dict:
     """Extract text from an uploaded document (base64 in ``content``)."""
     import base64
     import os as _os
-    from .ingest import extract_bytes, ocr as _ocr
+    from .ingest import extract_document
     name = data.get("filename", "upload.txt")
     ext = (_os.path.splitext(name)[1] or ".txt").lower()
     raw = base64.b64decode(data["content"])
-    text = extract_bytes(raw, ext)
-    # Tell the UI whether OCR was involved so it can flag best-effort text.
-    ocr_used = ext in (".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp")
-    if ext == ".pdf" and _ocr.ocr_available():
-        try:
-            from pypdf import PdfReader
-            import io as _io
-            layer = "\n".join((p.extract_text() or "")
-                              for p in PdfReader(_io.BytesIO(raw)).pages)
-            ocr_used = text.strip() != layer.strip()
-        except Exception:
-            ocr_used = False
-    return {"text": text, "chars": len(text), "ocr_used": ocr_used}
+    # The loader reports exactly which pages came from OCR, so the UI can flag
+    # best-effort text - no re-parsing the upload to guess.
+    doc = extract_document(raw, ext)
+    return {"text": doc.text, "chars": len(doc.text), "ocr_used": doc.ocr_used,
+            "ocr_pages": [p + 1 for p in doc.ocr_pages]}  # 1-based for humans
 
 
 def _review(data: dict) -> dict:
     from .review import render_review_html
     text = data["text"]
-    policy = get_policy(data.get("policy", "personal"))
+    policy = _resolve_policy(data)
     use_spacy = data.get("use_spacy", True)
     return {"html": render_review_html(text, policy, use_spacy=use_spacy)}
 
@@ -234,7 +238,9 @@ sanitized version is shown for you to copy. Nothing is sent anywhere.</p>
    if(d.error){$('#fstatus').textContent='error: '+d.error;return;}
    $('#in').value=d.text;
    $('#fstatus').textContent=f.name+' — '+d.chars+' chars extracted'+
-     (d.ocr_used?' (via OCR — check for recognition errors)':'');
+     (d.ocr_used?' (via OCR'+((d.ocr_pages||[]).length>1||f.name.toLowerCase().endsWith('.pdf')
+       ?' on page'+(d.ocr_pages.length>1?'s ':' ')+d.ocr_pages.join(', '):'')
+       +' — check for recognition errors)':'');
  };
  $('#san').onclick=async()=>{
    $('#status').textContent='working...';
@@ -282,14 +288,35 @@ def _warm_ocr() -> None:
         pass
 
 
-def serve(host: str = "127.0.0.1", port: int = 8723) -> None:
-    """Run the daemon until interrupted. Loopback-only by default."""
+def register_policies(policies) -> None:
+    """Offer extra (custom) policies from the daemon alongside the built-ins.
+
+    A custom policy may not reuse a built-in name: silently swapping what
+    "personal" means for every client is exactly the kind of surprise a privacy
+    tool must not have.
+    """
+    for p in policies:
+        if p.name in BUILTIN:
+            raise ValueError(f"custom policy name {p.name!r} clashes with a built-in "
+                             f"policy; rename it")
+        _POLICIES[p.name] = p
+
+
+def serve(host: str = "127.0.0.1", port: int = 8723, policies=()) -> None:
+    """Run the daemon until interrupted. Loopback-only by default.
+
+    ``policies`` are extra :class:`~blotch.policy.Policy` objects (e.g. with
+    custom recognizers) offered by name next to the built-ins.
+    """
+
+    register_policies(policies)
 
     import threading
     threading.Thread(target=_warm_ocr, daemon=True).start()
 
     httpd = ThreadingHTTPServer((host, port), _Handler)
     print(f"blotch gateway on http://{host}:{port} (local only) - open it in a browser")
+    print(f"policies: {', '.join(sorted(_POLICIES))}")
     print("endpoints: GET / (web UI) /policies /health ; POST /inspect /sanitize /restore")
     try:
         httpd.serve_forever()

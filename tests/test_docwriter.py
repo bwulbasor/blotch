@@ -70,6 +70,17 @@ def test_extract_bytes_pdf_roundtrip(tmp_path):
     assert "Maria Gomez" in text and "m@example.com" in text
 
 
+def test_extract_document_reports_no_ocr_for_text_layer_pdf(tmp_path):
+    pytest.importorskip("reportlab")
+    pytest.importorskip("pypdf")
+    from blotch.ingest import extract_document
+    out = tmp_path / "d.pdf"
+    write_document(str(out), "Contact Maria Gomez at m@example.com.")
+    doc = extract_document(out.read_bytes(), ".pdf")
+    assert "Maria Gomez" in doc.text
+    assert doc.ocr_pages == [] and not doc.ocr_used
+
+
 def test_extract_bytes_txt():
     from blotch.ingest import extract_bytes
     assert extract_bytes(b"hello Alejandro", ".txt") == "hello Alejandro"
@@ -79,3 +90,31 @@ def test_unsupported_extension(tmp_path):
     result = _san()
     with pytest.raises(ValueError):
         write_document(str(tmp_path / "x.xyz"), result.sanitized_text)
+
+
+def test_verify_enforces_custom_recognizers(tmp_path):
+    # the read-back scan must also block an organisation-specific ID
+    from blotch import EntityType, Recognizer
+    from blotch.docwriter import VerificationError
+    rec = Recognizer("employee_id", r"EMP-\d{5}", EntityType.ACCOUNT_ID, confidence=0.95)
+    result = _san()
+    leaky = result.sanitized_text + " (badge EMP-10442)"
+    with pytest.raises(VerificationError):
+        write_document(str(tmp_path / "o.txt"), leaky, vault=result.vault,
+                       verify=True, recognizers=[rec])
+
+
+def test_unreadable_binary_output_fails_verification_not_passes(tmp_path, monkeypatch):
+    # If a written PDF can't be parsed back, verification must refuse - not scan
+    # the compressed bytes as text and report a false "clean".
+    pytest.importorskip("reportlab")
+    import blotch.ingest as ingest
+    from blotch.docwriter import VerificationError
+
+    def boom(*a, **k):
+        raise RuntimeError("PDF support needs the 'docs' extra")
+    monkeypatch.setattr(ingest, "load_text", boom)
+    result = _san()
+    with pytest.raises(VerificationError, match="could not read"):
+        write_document(str(tmp_path / "o.pdf"), result.sanitized_text,
+                       vault=result.vault, verify=True)
