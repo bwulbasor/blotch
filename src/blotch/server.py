@@ -55,6 +55,10 @@ class _Handler(BaseHTTPRequestHandler):
 
     def _read_json(self) -> dict:
         length = int(self.headers.get("Content-Length", 0))
+        if length < 0:
+            # rfile.read(-n) means "read until EOF", which blocks this thread
+            # while the client waits for our response
+            raise ValueError("invalid Content-Length")
         if length > MAX_BODY:
             raise ValueError("request body too large")
         raw = self.rfile.read(length) if length else b"{}"
@@ -203,6 +207,10 @@ def register_policies(policies) -> None:
         if p.name in BUILTIN:
             raise ValueError(f"custom policy name {p.name!r} clashes with a built-in "
                              f"policy; rename it")
+        if p.name in _POLICIES:
+            # two --policy-file's with the same name: the second must not
+            # silently replace the first's rules
+            raise ValueError(f"duplicate custom policy name {p.name!r}")
         _POLICIES[p.name] = p
 
 

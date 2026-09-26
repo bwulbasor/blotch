@@ -17,7 +17,10 @@ from .vault import Vault
 # ("[[ PERSON_001 ]]") and markdown backslash-escapes ("\[\[PERSON\_001\]\]").
 # The inner text is normalised (escapes + spaces stripped) and checked against
 # the strict TYPE_NNN shape, so ordinary "[[not a token]]" is left untouched.
-_TOK_REGION = re.compile(r"\\?\[\s*\\?\[(.*?)\\?\]\s*\\?\]", re.S)
+# The inner part may not contain a bracket and is length-capped: an unbalanced
+# "[[" earlier in the reply ("Use [[ to open a link ... [[PERSON_001]]") must not
+# open a region that swallows the real token after it.
+_TOK_REGION = re.compile(r"\\?\[\s*\\?\[([^\[\]]{1,64}?)\\?\]\s*\\?\]")
 _INNER = re.compile(r"([A-Z][A-Z_]*)_(\d{3,})")
 
 

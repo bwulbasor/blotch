@@ -115,6 +115,7 @@ def sanitize(text: str, policy: Policy, *, use_ner: bool = True,
     covered = bytearray(len(text))  # 1 where a char is already claimed by an edit
     surface_token: dict[str, str | None] = {}  # surface -> token, None if ambiguous
     surface_conf: dict[str, float] = {}         # surface -> owning entity confidence
+    part_owners: dict[str, dict[str, float]] = {}  # name part -> {token: conf}
     n_tok = n_red = 0
     for entity in entities:
         action = policy.action_for(entity.entity_type)
@@ -147,24 +148,76 @@ def sanitize(text: str, policy: Policy, *, use_ner: bool = True,
             if len(surface) >= 2:
                 surface_token.setdefault(surface, replacement)
                 surface_conf.setdefault(surface, econf)
-        # For a confident PERSON, also propagate its individual name parts so a
-        # later bare surname ("Green" after "Mr Green") doesn't leak. Parts that
-        # are common words / places / titles are excluded; matching is
-        # case-sensitive, so "Green" is caught but "green" is not.
+        # For a confident PERSON, also collect its individual name parts so a
+        # later bare surname ("Green" after "Mr Green") doesn't leak. Registered
+        # after the loop, once we know how many people claim each part.
         if entity.entity_type == EntityType.PERSON:
             for part in _propagatable_name_parts(entity.canonical):
-                surface_token.setdefault(part, replacement)
-                surface_conf.setdefault(part, econf)
+                part_owners.setdefault(part, {}).setdefault(replacement, econf)
+
+    # Name parts. An entity's own surface always wins (e.g. a detected bare
+    # "Frank" that the resolver kept as its own entity). A part claimed by
+    # exactly ONE person propagates to that person. A part shared by two people
+    # ("Frank" in Frank Baker and Frank Cook) is ambiguous: pinning it to either
+    # would make restore name someone the text never named - the very merge the
+    # resolver refuses. It must still be hidden, so it gets its own token,
+    # minted only if a bare occurrence actually turns up.
+    ambiguous_parts: set[str] = set()
+    for part in sorted(part_owners):
+        if part in surface_token:
+            continue
+        owners = part_owners[part]
+        if len(owners) == 1:
+            (rep, conf), = owners.items()
+            surface_token[part], surface_conf[part] = rep, conf
+        else:
+            ambiguous_parts.add(part)
+
+    # Values already in a shared vault from earlier documents (batch
+    # --shared-vault): catch them here as recorded edits, so preview/review see
+    # them, rather than only in the output sweep below.
+    for tok in vault.tokens():
+        v = vault.value_for(tok)
+        if v and len(v) >= 2 and v not in surface_token:
+            surface_token[v], surface_conf[v] = tok, 0.9
+    ambiguous_parts -= surface_token.keys()
+
+    next_person = max((e.index for e in entities if e.entity_type == EntityType.PERSON),
+                      default=0)
+    minted: dict[str, Entity] = {}
+
+    def _mint(part: str, start: int, end: int) -> str:
+        """Give an ambiguous bare name part its own entity + token (once)."""
+        nonlocal next_person, n_tok, n_red
+        span = Span(start, end, EntityType.PERSON, part, 0.5, "propagation:ambiguous")
+        ent = minted.get(part)
+        if ent is not None:
+            ent.members.append(span)
+            return ent.replacement
+        next_person += 1
+        ent = Entity(EntityType.PERSON, part, [span], index=next_person)
+        action = policy.action_for(EntityType.PERSON)
+        if action == Action.TOKENIZE:
+            tok = registry.token_for(EntityType.PERSON, part) if registry else None
+            ent.replacement = vault.add_entity(ent, action.value, token=tok)
+            n_tok += 1
+        else:
+            ent.replacement = _REDACTED
+            n_red += 1
+        minted[part] = ent
+        kept_entities.append(ent)
+        surface_token[part], surface_conf[part] = ent.replacement, 0.5
+        return ent.replacement
 
     # Occurrence propagation (plan §2): once a surface is known sensitive, catch
     # *every* whole-word occurrence, including ones the detectors skipped (e.g. a
     # sentence-initial "Curie" that the single-word heuristic dropped). This keeps
-    # tokenisation consistent so the leak scanner stays clean. Only surfaces owned
-    # unambiguously by one entity propagate, to avoid merging distinct people.
+    # tokenisation consistent so the leak scanner stays clean. Ambiguous name
+    # parts are matched too but mint their own token (above).
     # One combined regex, longest surface first, so the pass is a single scan.
     # Total, deterministic order (length desc, then the string) so same-length
     # surfaces never swap between chunks run-to-run.
-    surfaces = sorted((s for s, t in surface_token.items() if t),
+    surfaces = sorted({s for s, t in surface_token.items() if t} | ambiguous_parts,
                       key=lambda s: (-len(s), s))
     # Chunk the alternation so a document with thousands of distinct surfaces
     # never builds one pathologically large pattern. Longest-first ordering is
@@ -176,10 +229,20 @@ def sanitize(text: str, policy: Policy, *, use_ner: bool = True,
                               + r")(?!\w)")
         for m in combined.finditer(text):
             s, e = m.start(), m.end()
-            token = surface_token.get(m.group(0))
-            if token is None or covered[s] or covered[e - 1]:
+            # any overlap with an existing edit, not just at the endpoints: a
+            # match whose MIDDLE is already covered must not be added either
+            if covered.find(1, s, e) != -1:
                 continue
-            edits.append((s, e, token, surface_conf.get(m.group(0), 0.5)))
+            surface = m.group(0)
+            token = surface_token.get(surface)
+            if token is None:
+                if surface not in ambiguous_parts:
+                    continue
+                token = _mint(surface, s, e)
+            elif surface in minted:
+                minted[surface].members.append(
+                    Span(s, e, EntityType.PERSON, surface, 0.5, "propagation:ambiguous"))
+            edits.append((s, e, token, surface_conf.get(surface, 0.5)))
             covered[s:e] = b"\x01" * (e - s)
 
     # Apply all edits in a single left-to-right pass (O(text + edits)); repeated

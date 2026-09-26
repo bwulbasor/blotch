@@ -58,6 +58,10 @@ class Recognizer:
             # a pattern that can match empty text would emit zero-width spans
             # everywhere (and matches nothing meaningful)
             raise ValueError(f"recognizer {self.name!r}: pattern can match empty text")
+        if isinstance(self.group, bool):
+            # bool is an int subclass: JSON "group": true would silently mean 1
+            raise ValueError(f"recognizer {self.name!r}: group must be a name or "
+                             f"number, not {self.group!r}")
         if self.group is not None:
             known = isinstance(self.group, int) and 0 <= self.group <= rx.groups
             known = known or (isinstance(self.group, str) and self.group in rx.groupindex)
@@ -83,8 +87,12 @@ class Recognizer:
         except ValueError:
             raise ValueError(f"recognizer {data['name']!r}: unknown entity_type "
                              f"{data['entity_type']!r}") from None
+        conf = data.get("confidence", 0.9)
+        if isinstance(conf, bool) or not isinstance(conf, (int, float)):
+            raise ValueError(f"recognizer {data['name']!r}: confidence must be a number "
+                             f"in [0, 1], got {conf!r}")
         return cls(name=data["name"], pattern=data["pattern"], entity_type=etype,
-                   confidence=float(data.get("confidence", 0.9)),
+                   confidence=float(conf),
                    group=data.get("group"),
                    ignore_case=bool(data.get("ignore_case", False)))
 

@@ -80,11 +80,13 @@ class Span:
 
 
 def resolve_overlaps(spans: list[Span]) -> list[Span]:
-    """Drop overlapping spans, keeping the widest, most confident coverage.
+    """Resolve overlapping spans into non-overlapping coverage.
 
     Detectors run independently and may double-cover text (e.g. an ADDRESS that
-    contains a POSTAL code). We keep the widest, most confident coverage so the
-    replaced region is never left with a leaked fragment.
+    contains a POSTAL code). We keep the widest, most confident coverage, and
+    when a span loses to one that overlaps only part of it, its uncovered
+    remainder is kept too - so the replaced region is never left with a leaked
+    fragment.
     """
 
     if not spans:
@@ -112,9 +114,50 @@ def resolve_overlaps(spans: list[Span]) -> list[Span]:
     covered = bytearray(end)
     kept: list[Span] = []
     for span in ordered:
-        if covered.find(1, span.start, span.end) != -1:
+        if covered.find(1, span.start, span.end) == -1:
+            kept.append(span)
+            covered[span.start:span.end] = b"\x01" * (span.end - span.start)
             continue
-        kept.append(span)
-        covered[span.start:span.end] = b"\x01" * (span.end - span.start)
+        # The span lost to a higher-ranked one that overlaps only PART of it.
+        # Discarding it whole would leave its uncovered part - text a detector
+        # flagged as sensitive - in the clear: spaCy tagging "Martinez" used to
+        # evict the heuristic's "Alejandro Martinez" and leak "Alejandro". Keep
+        # the uncovered remainder(s) instead.
+        for frag in _remainders(span, covered):
+            kept.append(frag)
+            covered[frag.start:frag.end] = b"\x01" * (frag.end - frag.start)
     kept.sort(key=lambda s: s.start)
     return kept
+
+
+# Greedy digit-run detectors whose partial loss is regex over-reach (a phone run
+# bridging into an IP: "192.168.5.10 (01"), not a real fragment of PII.
+_NO_REMAINDER = {EntityType.PHONE, EntityType.CREDIT_CARD}
+
+
+def _remainders(span: Span, covered: bytearray) -> list[Span]:
+    """Uncovered sub-ranges of ``span``, trimmed to their alphanumeric core."""
+
+    if span.entity_type in _NO_REMAINDER or len(span.value) != span.end - span.start:
+        return []  # (value not aligned with offsets -> can't slice it safely)
+    out: list[Span] = []
+    i = span.start
+    while i < span.end:
+        if covered[i]:
+            i += 1
+            continue
+        j = i
+        while j < span.end and not covered[j]:
+            j += 1
+        # trim non-alphanumeric edges ("-Jose Gomez Ruiz " -> "Jose Gomez Ruiz")
+        a, b = i, j
+        while a < b and not span.value[a - span.start].isalnum():
+            a += 1
+        while b > a and not span.value[b - 1 - span.start].isalnum():
+            b -= 1
+        frag = span.value[a - span.start:b - span.start]
+        if sum(ch.isalnum() for ch in frag) >= 2:
+            out.append(Span(a, b, span.entity_type, frag, span.confidence,
+                            f"{span.detector}:remainder"))
+        i = j
+    return out

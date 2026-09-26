@@ -104,9 +104,12 @@ _AGE = re.compile(
     re.IGNORECASE,
 )
 # Clock times: "10:18 PM", "23:05", "9:00:30", "4 PM". A 2-digit minute avoids
-# ratios/verses like "3:2"; a bare "4" needs the AM/PM marker.
+# ratios/verses like "3:2"; a bare "4" needs the AM/PM marker. The lookarounds
+# stop a match starting or ending mid-timestamp ("30:00" inside "10:30:00"), and
+# the whitespace lives INSIDE the optional AM/PM group so a plain "10:30 to"
+# never swallows the space after it.
 _TIME = re.compile(
-    r"\b\d{1,2}:\d{2}(?::\d{2})?[ \t]*(?:[AaPp]\.?[Mm]\.?)?\b"
+    r"(?<![\d:])\d{1,2}:\d{2}(?::\d{2})?(?![\d:])(?:[ \t]*[AaPp]\.?[Mm]\.?\b)?"
     r"|\b\d{1,2}[ \t]*[AaPp]\.?[Mm]\.?\b"
 )
 # Court / reference numbers like "AZ 73 C 226", "17 C 391/26", "5 Ob 12/25":
@@ -223,7 +226,9 @@ def detect(text: str) -> list[Span]:
                               0.55, "initials"))
     spans += _yield(_DATE, text, EntityType.DATE, "date", 0.7)
     spans += _yield(_AGE, text, EntityType.AGE, "age", 0.8)
-    spans += _yield(_TIME, text, EntityType.TIME, "time", 0.75)
+    # below DATE (0.7): an ISO datetime "2026-03-14T10:30:00" must stay ONE date
+    # span; a TIME that outranked it evicted the date and leaked "2026-03-14".
+    spans += _yield(_TIME, text, EntityType.TIME, "time", 0.65)
 
     # Validated detectors: only emit on checksum pass (high precision).
     for m in _IBAN.finditer(text):
